@@ -1,0 +1,33 @@
+{
+  "name": "Email to WhatsApp Alert",
+  "description": "Forward email summaries to WhatsApp",
+  "trigger": {
+    "type": "email",
+    "filter": "from:boss@example.com"
+  },
+  "actions": [
+    {
+      "type": "summarize",
+      "tool": "gpt",
+      "config": {
+        "max_length": 100
+      }
+    },
+    {
+      "type": "send_whatsapp",
+      "config": {
+        "to": "+1234567890",
+        "message": "Email Summary: {{summary}}"
+      },
+      "tool": "twilio"
+    }
+  ],
+  "metadata": {
+    "generated_from": "Check Apple stock price every morning and email me the results",
+    "version": "1.0",
+    "created_by": "WizFlow CLI"
+  },
+  "variables": {
+    "summary": "Value for summary"
+  }
+}

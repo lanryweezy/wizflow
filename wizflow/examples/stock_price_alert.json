@@ -1,0 +1,35 @@
+{
+  "name": "Stock Price Alert",
+  "description": "Monitor stock prices and send alerts when thresholds are met",
+  "trigger": {
+    "type": "schedule",
+    "schedule": "0 9 * * 1-5"
+  },
+  "actions": [
+    {
+      "type": "api_call",
+      "tool": "requests",
+      "config": {
+        "url": "https://api.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=AAPL&apikey=demo",
+        "method": "GET"
+      }
+    },
+    {
+      "type": "send_email",
+      "tool": "smtp",
+      "config": {
+        "to": "investor@email.com",
+        "subject": "Daily Stock Price Alert",
+        "message": "AAPL current price: {{api_result.price}}"
+      }
+    }
+  ],
+  "variables": {
+    "api_result": "Stock price data from API"
+  },
+  "metadata": {
+    "generated_from": "Check Apple stock price every morning and email me the results",
+    "version": "1.0",
+    "created_by": "WizFlow CLI"
+  }
+}

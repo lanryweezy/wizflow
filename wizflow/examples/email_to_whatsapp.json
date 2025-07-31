@@ -1,0 +1,35 @@
+{
+  "name": "Email to WhatsApp Alert",
+  "description": "Forward important email summaries to WhatsApp",
+  "trigger": {
+    "type": "email",
+    "filter": "from:boss@company.com"
+  },
+  "actions": [
+    {
+      "type": "summarize",
+      "tool": "gpt",
+      "config": {
+        "input_text": "{{email_content}}",
+        "max_length": 100
+      }
+    },
+    {
+      "type": "send_whatsapp",
+      "tool": "twilio",
+      "config": {
+        "to": "+1234567890",
+        "message": "📧 Important Email Summary: {{summary}}"
+      }
+    }
+  ],
+  "variables": {
+    "email_content": "Content from the email",
+    "summary": "AI-generated summary"
+  },
+  "metadata": {
+    "generated_from": "When I get an email from boss, summarize and send to WhatsApp",
+    "version": "1.0",
+    "created_by": "WizFlow CLI"
+  }
+}
