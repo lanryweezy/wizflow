@@ -1,0 +1,2 @@
+[console_scripts]
+wizflow = wizflow.cli:main

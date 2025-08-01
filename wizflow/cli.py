@@ -15,6 +15,7 @@ from .core.workflow_builder import WorkflowBuilder
 from .core.code_generator import CodeGenerator
 from .executors.workflow_executor import WorkflowExecutor
 from .core.config import Config
+from .core.credentials import CredentialManager
 
 
 class WizFlowCLI:
@@ -26,6 +27,7 @@ class WizFlowCLI:
         self.builder = WorkflowBuilder(self.llm)
         self.generator = CodeGenerator()
         self.executor = WorkflowExecutor()
+        self.credentials = CredentialManager()
         self.workflows_dir = Path("workflows")
         self.workflows_dir.mkdir(exist_ok=True)
     
@@ -81,6 +83,23 @@ class WizFlowCLI:
             return
         
         print(f"🚀 Running {workflow_name}...")
+
+        # Dependency check before running
+        print("🔬 Analyzing dependencies...")
+        analysis = self.executor.dry_run(str(py_path))
+        if analysis['success'] and analysis['analysis'].get('potential_issues'):
+            missing_packages = self._check_for_missing_packages(analysis['analysis']['imports'])
+            if missing_packages:
+                print(f"⚠️  This workflow may require the following packages: {', '.join(missing_packages)}")
+                response = input("→ Install them now? (y/N): ").strip().lower()
+                if response in ['y', 'yes']:
+                    install_result = self.executor.install_dependencies(missing_packages)
+                    if not install_result['success']:
+                        print(f"❌ Failed to install dependencies: {install_result['failed']}")
+                        return
+                else:
+                    print("Skipping installation. The workflow may fail.")
+
         result = self.executor.execute_workflow(str(py_path))
         
         if result["success"]:
@@ -106,6 +125,41 @@ class WizFlowCLI:
         
         print(f"📦 Exported {workflow_name}.json and {workflow_name}.py to current directory")
 
+    def _check_for_missing_packages(self, imports: list) -> list:
+        """Check if any of the required packages are not installed."""
+        import importlib
+        missing = []
+        # We only care about top-level packages that are likely to be installed via pip
+        potential_packages = {'requests', 'twilio', 'beautifulsoup4', 'gspread', 'schedule'}
+
+        for imp in imports:
+            # e.g., "bs4" is the module name for "beautifulsoup4"
+            if imp == 'bs4': imp = 'beautifulsoup4'
+
+            if imp in potential_packages:
+                try:
+                    importlib.import_module(imp)
+                except ImportError:
+                    missing.append(imp)
+        return missing
+
+    def manage_credentials(self, args: list):
+        """Manage user credentials"""
+        if not args or len(args) < 2:
+            print("❌ Invalid credentials command. Use: wizflow --credentials set <key> <value>")
+            return
+
+        action = args[0].lower()
+        if action == 'set':
+            if len(args) != 3:
+                print("❌ Invalid 'set' command. Use: --credentials set <key> <value>")
+                return
+            key, value = args[1], args[2]
+            self.credentials.set_credential(key, value)
+            print(f"✅ Credential '{key}' set.")
+        else:
+            print(f"❌ Unknown credentials command: {action}")
+
 
 def main():
     """Main CLI entry point"""
@@ -127,6 +181,7 @@ Examples:
     parser.add_argument('--list', '-l', action='store_true', help='List all saved workflows')
     parser.add_argument('--export', '-e', help='Export a workflow to current directory')
     parser.add_argument('--config', '-c', help='Set configuration (e.g., --config openai_key=your_key)')
+    parser.add_argument('--credentials', nargs='+', help='Manage credentials (e.g., --credentials set smtp_user myuser)')
     
     args = parser.parse_args()
     
@@ -143,6 +198,8 @@ Examples:
             key, value = args.config.split('=', 1)
             cli.config.set(key, value)
             print(f"✅ Set {key} configuration")
+        elif args.credentials:
+            cli.manage_credentials(args.credentials)
         elif args.command:
             if args.command in ['list', 'ls']:
                 cli.list_workflows()

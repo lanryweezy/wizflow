@@ -9,6 +9,30 @@ import json
 from typing import Dict, Any, Optional
 from pathlib import Path
 
+try:
+    import resource
+except ImportError:
+    # resource module is not available on Windows
+    resource = None
+
+
+def _set_resource_limits():
+    """
+    Sets resource limits for the child process.
+    This function is intended to be used with preexec_fn.
+    """
+    if not resource:
+        return
+
+    # Set CPU time limit to 5 minutes (300 seconds)
+    resource.setrlimit(resource.RLIMIT_CPU, (300, 300))
+
+    # Set virtual memory limit to 512 MB
+    resource.setrlimit(resource.RLIMIT_AS, (512 * 1024 * 1024, 512 * 1024 * 1024))
+
+    # Set file size limit to 100 MB
+    resource.setrlimit(resource.RLIMIT_FSIZE, (100 * 1024 * 1024, 100 * 1024 * 1024))
+
 
 class WorkflowExecutor:
     """Executes Python workflow scripts safely"""
@@ -31,6 +55,9 @@ class WorkflowExecutor:
         # Use provided timeout or default
         exec_timeout = timeout or self.timeout
         
+        # Determine preexec_fn
+        preexec_fn = _set_resource_limits if resource else None
+
         try:
             # Execute the script in a subprocess
             result = subprocess.run(
@@ -38,7 +65,8 @@ class WorkflowExecutor:
                 capture_output=True,
                 text=True,
                 timeout=exec_timeout,
-                cwd=script_path.parent
+                cwd=script_path.parent,
+                preexec_fn=preexec_fn
             )
             
             return {
