@@ -71,33 +71,73 @@ class MockProvider(LLMProvider):
     """Mock provider for testing without API keys"""
     
     def generate(self, prompt: str, system_prompt: str = "") -> str:
-        """Generate mock response"""
-        return '''
-        {
-          "name": "Email to WhatsApp Alert",
-          "description": "Forward email summaries to WhatsApp",
-          "trigger": {
-            "type": "email",
-            "filter": "from:boss@example.com"
-          },
-          "actions": [
+        """Generate mock response, checking for conditional keywords."""
+        prompt_lower = prompt.lower()
+        if 'if' in prompt_lower and 'stock' in prompt_lower:
+            return '''
             {
-              "type": "summarize",
-              "tool": "gpt",
-              "config": {
-                "max_length": 100
-              }
-            },
-            {
-              "type": "send_whatsapp",
-              "config": {
-                "to": "+1234567890",
-                "message": "Email Summary: {{summary}}"
-              }
+              "name": "Conditional Stock Alert",
+              "description": "If stock price is above a threshold, send an email.",
+              "trigger": { "type": "manual" },
+              "actions": [
+                {
+                  "type": "api_call",
+                  "config": { "url": "https://api.example.com/stock/AAPL" }
+                },
+                {
+                  "type": "send_email",
+                  "condition": "variables.get('api_result', {}).get('price', 0) > 200",
+                  "config": {
+                    "to": "user@example.com",
+                    "subject": "Stock Alert: AAPL",
+                    "message": "AAPL stock price is over $200!"
+                  }
+                }
+              ]
             }
-          ]
-        }
-        '''
+            '''
+        elif 'for each' in prompt_lower and 'article' in prompt_lower:
+            return '''
+            {
+              "name": "Summarize Scraped Articles",
+              "description": "For each article scraped, summarize its content.",
+              "trigger": { "type": "manual" },
+              "actions": [
+                {
+                  "type": "web_scrape",
+                  "config": { "url": "https://example.com/articles" }
+                },
+                {
+                  "type": "summarize",
+                  "loop": "article in scraped_content",
+                  "config": {
+                    "input_text": "{{article}}"
+                  }
+                }
+              ]
+            }
+            '''
+        else:
+            return '''
+            {
+              "name": "Email to WhatsApp Alert",
+              "description": "Forward email summaries to WhatsApp",
+              "trigger": { "type": "email", "filter": "from:boss@example.com" },
+              "actions": [
+                {
+                  "type": "summarize",
+                  "config": { "max_length": 100 }
+                },
+                {
+                  "type": "send_whatsapp",
+                  "config": {
+                    "to": "+1234567890",
+                    "message": "Email Summary: {{summary}}"
+                  }
+                }
+              ]
+            }
+            '''
 
 
 class LLMInterface:
@@ -149,6 +189,8 @@ JSON Schema:
   "actions": [
     {
       "type": "action_type",
+    "condition": "Optional: A Python expression string that must evaluate to True for the action to run. e.g. 'variables.get(\"price\", 0) > 100'",
+    "loop": "Optional: A Python 'for' loop expression over a list in 'variables'. e.g., 'item in scraped_content'",
       "tool": "library_or_service",
       "config": {
         "parameter": "value"
@@ -185,38 +227,48 @@ Return ONLY the JSON, no explanation or code blocks.
 """
     
     def generate_workflow(self, description: str) -> Dict[str, Any]:
-        """Generate workflow JSON from natural language description"""
+        """Generate workflow JSON from natural language, with retries."""
         prompt = f"""
 Create a workflow for this task: "{description}"
 
 Return only the JSON workflow structure.
 """
-        
-        response = self.provider.generate(prompt, self.system_prompt)
-        
-        # Extract JSON from response
-        try:
-            # Try to find JSON in the response
-            json_match = re.search(r'\{.*\}', response, re.DOTALL)
-            if json_match:
-                json_str = json_match.group(0)
+        last_error = None
+        for attempt in range(2): # Try up to 2 times
+            if last_error:
+                print(f"🔄 Retrying LLM generation (Attempt {attempt + 1})...")
+                prompt = f"""
+The previous attempt failed. Please fix the JSON output.
+Error: {last_error}
+Original Task: "{description}"
+Return only the corrected JSON workflow structure.
+"""
+
+            response = self.provider.generate(prompt, self.system_prompt)
+
+            try:
+                # Extract JSON from response
+                json_match = re.search(r'```json\s*(\{.*?\})\s*```', response, re.DOTALL)
+                if json_match:
+                    json_str = json_match.group(1)
+                else:
+                    json_match = re.search(r'\{.*\}', response, re.DOTALL)
+                    if json_match:
+                        json_str = json_match.group(0)
+                    else:
+                        json_str = response # Try to parse the whole thing
+
                 return json.loads(json_str)
-            else:
-                return json.loads(response)
-        except json.JSONDecodeError:
-            # Fallback to a basic structure
-            return {
-                "name": "Generated Workflow",
-                "description": description,
-                "trigger": {"type": "manual"},
-                "actions": [
-                    {
-                        "type": "api_call",
-                        "tool": "requests",
-                        "config": {
-                            "url": "https://httpbin.org/get",
-                            "method": "GET"
-                        }
-                    }
-                ]
-            }
+
+            except json.JSONDecodeError as e:
+                last_error = f"JSONDecodeError: {e}"
+                continue
+
+        # If all attempts fail, return a fallback structure
+        print("❌ LLM generation failed after multiple attempts.")
+        return {
+            "name": "Fallback Workflow",
+            "description": f"Could not generate workflow for: {description}",
+            "trigger": {"type": "manual"},
+            "actions": [{"type": "api_call", "config": {"url": "https://httpbin.org/get"}}]
+        }

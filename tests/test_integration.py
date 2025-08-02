@@ -57,3 +57,47 @@ def test_end_to_end_workflow_generation(cli_instance):
     assert "def summarize_text(" in code
     assert "def send_whatsapp(" in code
     assert "send_whatsapp(to_number='+1234567890'" in code # Check call code
+
+
+def test_conditional_workflow_generation(cli_instance):
+    """
+    Test generating a workflow with a conditional action.
+    This test will fail until the feature is implemented.
+    """
+    description = "If the stock price of AAPL is above 200, send an email"
+    output_name = "test_conditional_alert"
+
+    # Generate the workflow
+    _, py_path_str = cli_instance.generate_workflow(description, output_name)
+    py_path = Path(py_path_str)
+
+    assert py_path.exists()
+
+    with open(py_path, 'r') as f:
+        code = f.read()
+
+    # Check that the generated code contains a Python 'if' statement
+    assert "if variables.get('api_result', {}).get('price', 0) > 200:" in code
+
+
+def test_looping_workflow_generation(cli_instance):
+    """
+    Test generating a workflow with a looping action.
+    This test will fail until the feature is implemented.
+    """
+    description = "For each article in the scraped content, summarize it."
+    output_name = "test_looping_alert"
+
+    # Generate the workflow
+    _, py_path_str = cli_instance.generate_workflow(description, output_name)
+    py_path = Path(py_path_str)
+
+    assert py_path.exists()
+
+    with open(py_path, 'r') as f:
+        code = f.read()
+
+    # Check that the generated code contains a Python 'for' loop
+    assert "for article in variables.get('scraped_content', []):" in code
+    # Check that the looped action is called inside the loop
+    assert "summarize_text(text=article" in code

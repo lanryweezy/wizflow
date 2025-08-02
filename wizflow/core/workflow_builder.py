@@ -4,7 +4,9 @@ Workflow Builder - Converts natural language to structured workflows
 
 import json
 from typing import Dict, Any
+from pathlib import Path
 from .llm_interface import LLMInterface
+import jsonschema
 
 
 class WorkflowBuilder:
@@ -12,7 +14,14 @@ class WorkflowBuilder:
     
     def __init__(self, llm_interface: LLMInterface):
         self.llm = llm_interface
-    
+        self.schema = self._load_schema()
+
+    def _load_schema(self) -> Dict[str, Any]:
+        """Loads the workflow JSON schema."""
+        schema_path = Path(__file__).parent.parent / "schemas" / "workflow_schema.json"
+        with open(schema_path, 'r') as f:
+            return json.load(f)
+
     def build_from_description(self, description: str) -> Dict[str, Any]:
         """Build workflow from natural language description"""
         print("🔄 Generating workflow structure...")
@@ -27,8 +36,25 @@ class WorkflowBuilder:
         return workflow
     
     def _validate_workflow(self, workflow: Dict[str, Any]) -> Dict[str, Any]:
-        """Validate and fix workflow structure"""
-        # Ensure required fields exist
+        """Validate and fix workflow structure using JSON schema."""
+        try:
+            jsonschema.validate(instance=workflow, schema=self.schema)
+            print("✅ Workflow structure is valid.")
+        except jsonschema.exceptions.ValidationError as e:
+            print(f"⚠️  Workflow validation error: {e.message}")
+            print("   Attempting to fix the workflow...")
+            # Fallback to simple validation and fixing
+            if 'name' not in workflow:
+                workflow['name'] = 'Generated Workflow'
+            if 'description' not in workflow:
+                workflow['description'] = 'Auto-generated workflow'
+            if 'trigger' not in workflow:
+                workflow['trigger'] = {'type': 'manual'}
+            if 'actions' not in workflow:
+                workflow['actions'] = []
+            return workflow
+
+        # Simple validation as a fallback
         if 'name' not in workflow:
             workflow['name'] = 'Generated Workflow'
         

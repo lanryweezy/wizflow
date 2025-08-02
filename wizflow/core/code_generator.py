@@ -6,7 +6,7 @@ import json
 from typing import Dict, Any, List, Set
 
 from .plugin_manager import PluginManager
-from wizflow.plugins.base import ActionPlugin
+from wizflow.plugins.base import ActionPlugin, LoopVariable
 
 
 class CodeGenerator:
@@ -112,7 +112,7 @@ def _secure_import(name, globals=None, locals=None, fromlist=(), level=0):
         # Check for submodules
         parts = name.split('.')
         if parts[0] not in ALLOWED_MODULES:
-            raise ImportError(f"Disallowed import: '{name}'")
+                raise ImportError(f"Disallowed import: '{{name}}'")
 
     return _original_import(name, globals, locals, fromlist, level)
 
@@ -161,8 +161,8 @@ def run_workflow():
     Main workflow function: {name}
     Description: {description}
     """
-    print(f"🚀 Starting workflow: {name}")
-    print(f"📋 Description: {description}")
+    print("🚀 Starting workflow: {name}")
+    print("📋 Description: {description}")
 
     # Initialize variables for data passing between actions
     variables = {{}}
@@ -195,20 +195,104 @@ def run_workflow():
         code = ""
         for i, action in enumerate(workflow.get('actions', []), 1):
             action_type = action.get('type', 'unknown')
+            condition = action.get('condition')
+            loop = action.get('loop')
 
             code += f"\n        # Action {i}: {action_type}\n"
-            code += f"        print(f\"▶️  Executing action {i}: {action_type}\")\n"
 
             plugin = self.plugin_manager.get_plugin(action_type)
-            if plugin:
-                call_code = plugin.get_function_call(action.get('config', {}))
-                # Indent the action call code properly
-                indented_lines = ['        ' + line for line in call_code.split('\n')]
-                code += '\n'.join(indented_lines) + '\n'
-            else:
+            if not plugin:
                 code += f"        print(\"🤷‍♂️ Action '{action_type}' skipped (no plugin found).\")\n"
-        
+                continue
+
+            config = action.get('config', {})
+
+            # Start of the code block for this action
+            action_code_block = ""
+
+            if loop:
+                loop_var, list_var_str = self._parse_loop_string(loop)
+                action_code_block += f"        for {loop_var} in {list_var_str}:\n"
+
+                looped_config = self._substitute_loop_variable(config, loop_var)
+                call_code = plugin.get_function_call(looped_config)
+                # Indent for inside the for loop
+                call_code_indented = '\n'.join(['    ' + line for line in call_code.split('\n')])
+
+                if condition:
+                    formatted_condition = self._format_condition_string(condition, loop_var=loop_var)
+                    action_code_block += f"            if {formatted_condition}:\n"
+                    action_code_block += f"                print(f\"▶️  Executing conditional action in loop: {action_type}\")\n"
+                    # Indent for inside the if
+                    action_code_block += '\n'.join(['    ' + line for line in call_code_indented.split('\n')]) + '\n'
+                else:
+                    action_code_block += f"            print(f\"▶️  Executing action in loop: {action_type}\")\n"
+                    action_code_block += f"            {call_code_indented}\n"
+
+            elif condition:
+                formatted_condition = self._format_condition_string(condition)
+                action_code_block += f"        if {formatted_condition}:\n"
+                action_code_block += f"            print(f\"▶️  Executing conditional action: {action_type}\")\n"
+                call_code = plugin.get_function_call(config)
+                indented_call_code = '\n'.join(['    ' + line for line in call_code.split('\n')])
+                action_code_block += f"            {indented_call_code}\n"
+            else:
+                action_code_block += f"        print(f\"▶️  Executing action {i}: {action_type}\")\n"
+                call_code = plugin.get_function_call(config)
+                action_code_block += f"        {call_code}\n"
+
+            code += action_code_block
+
         return code
+
+    def _format_condition_string(self, condition: str, loop_var: str = None) -> str:
+        """
+        Formats a condition string, replacing {{var}} placeholders.
+        e.g., "{{api_result.price}} > 200" -> "variables.get('api_result', {}).get('price', 0) > 200"
+        """
+        import re
+
+        def replacer(match):
+            parts = match.group(1).strip().split('.')
+            if len(parts) == 1:
+                return f"variables.get('{parts[0]}')"
+            else:
+                # e.g., api_result.price -> .get('price', 0)
+                getters = [f".get('{part}')" for part in parts[1:]]
+                return f"variables.get('{parts[0]}', {{}}){''.join(getters)}"
+
+        # A more robust regex to handle nested properties
+        if loop_var:
+            # Special handling for the loop variable, which is not in the 'variables' dict
+            condition = condition.replace(f'{{{{{loop_var}}}}}', loop_var)
+
+        return re.sub(r'\{\{\s*([\w\.]+)\s*\}\}', replacer, condition)
+
+    def _parse_loop_string(self, loop_str: str) -> tuple[str, str]:
+        """
+        Parses a loop string like 'item in my_list' into ('item', 'variables.get("my_list", [])').
+        """
+        parts = loop_str.split(' in ')
+        loop_var = parts[0].strip()
+        list_name = parts[1].strip()
+
+        # Format the list variable to access it from the 'variables' dict
+        list_var_str = f"variables.get('{list_name}', [])"
+        return loop_var, list_var_str
+
+    def _substitute_loop_variable(self, config: dict, loop_var: str) -> dict:
+        """
+        Substitutes the loop variable placeholder in a config dictionary.
+        e.g., {'text': '{{item}}'} -> {'text': LoopVariable('item')}
+        """
+        new_config = {}
+        for key, value in config.items():
+            if isinstance(value, str) and f'{{{{{loop_var}}}}}' in value:
+                # This is a simplification; it assumes the whole string is the variable
+                new_config[key] = LoopVariable(loop_var)
+            else:
+                new_config[key] = value
+        return new_config
 
     def _generate_main_execution(self) -> str:
         """Generate main execution block"""

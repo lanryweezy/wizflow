@@ -27,6 +27,8 @@ Requires-Dist: beautifulsoup4>=4.9.0
 Requires-Dist: schedule>=1.1.0
 Requires-Dist: twilio>=8.0.0
 Requires-Dist: gspread>=5.0.0
+Requires-Dist: prompt_toolkit>=3.0
+Requires-Dist: jsonschema>=3.0
 Dynamic: author
 Dynamic: classifier
 Dynamic: description

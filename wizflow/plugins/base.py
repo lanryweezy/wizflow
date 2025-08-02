@@ -6,6 +6,15 @@ from abc import ABC, abstractmethod
 from typing import List, Dict, Any
 
 
+class LoopVariable:
+    """A wrapper class to indicate a variable is from a loop."""
+    def __init__(self, name: str):
+        self.name = name
+
+    def __str__(self):
+        return self.name
+
+
 class ActionPlugin(ABC):
     """
     Abstract base class for an action plugin.

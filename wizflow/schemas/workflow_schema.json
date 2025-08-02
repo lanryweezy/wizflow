@@ -1,0 +1,63 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "WizFlow Workflow",
+  "description": "A schema for WizFlow automation workflows.",
+  "type": "object",
+  "required": ["name", "description", "trigger", "actions"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "A short, descriptive name for the workflow."
+    },
+    "description": {
+      "type": "string",
+      "description": "A brief description of what the workflow does."
+    },
+    "trigger": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["email", "schedule", "file", "webhook", "manual"]
+        },
+        "filter": {
+          "type": "string"
+        },
+        "schedule": {
+          "type": "string"
+        }
+      }
+    },
+    "actions": {
+      "type": "array",
+      "description": "A list of actions to be executed in sequence.",
+      "items": {
+        "type": "object",
+        "required": ["type"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "The type of action to perform."
+          },
+          "condition": {
+            "type": "string",
+            "description": "An optional Python expression to determine if the action should run."
+          },
+          "loop": {
+            "type": "string",
+            "description": "An optional Python 'for' loop expression."
+          },
+          "tool": {
+            "type": "string",
+            "description": "The library or service to use for the action."
+          },
+          "config": {
+            "type": "object",
+            "description": "Configuration parameters for the action."
+          }
+        }
+      }
+    }
+  }
+}
