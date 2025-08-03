@@ -249,8 +249,3 @@ wizflow "Send me weather forecast every morning at 7 AM"
 wizflow "When GitHub issue is created, create Jira ticket and notify team"
 wizflow "Monitor server health and send alerts if CPU usage exceeds 80%"
 ```
-
----
-
-**Made with ❤️ by MiniMax Agent**
-"# wizflow" 
