@@ -101,3 +101,25 @@ def test_looping_workflow_generation(cli_instance):
     assert "for article in variables.get('scraped_content', []):" in code
     # Check that the looped action is called inside the loop
     assert "summarize_text(text=article" in code
+
+
+def test_chained_workflow_generation(cli_instance):
+    """
+    Test generating a workflow where the output of one action is used
+    as the input for another.
+    """
+    description = "Make an API call and then send the result in an email."
+    output_name = "test_chained_workflow"
+
+    # Generate the workflow
+    _, py_path_str = cli_instance.generate_workflow(description, output_name)
+    py_path = Path(py_path_str)
+
+    assert py_path.exists()
+
+    with open(py_path, 'r') as f:
+        code = f.read()
+
+    # Check that the api_call result is passed to send_email
+    assert "variables['api_result'] = make_api_call" in code
+    assert "message='The data is: {{api_result}}'" in code

@@ -197,6 +197,9 @@ def run_workflow():
             action_type = action.get('type', 'unknown')
             condition = action.get('condition')
             loop = action.get('loop')
+            config = action.get('config', {})
+
+            print(f"DEBUG: Action {i}: type={action_type}, condition={condition}, loop={loop}")
 
             code += f"\n        # Action {i}: {action_type}\n"
 
@@ -205,44 +208,40 @@ def run_workflow():
                 code += f"        print(\"🤷‍♂️ Action '{action_type}' skipped (no plugin found).\")\n"
                 continue
 
-            config = action.get('config', {})
+            # Determine the call string
+            call_str = plugin.get_function_call(config)
+            if plugin.output_variable_name:
+                call_str = f"variables['{plugin.output_variable_name}'] = {call_str}"
+            print(f"DEBUG: call_str = {call_str}")
 
-            # Start of the code block for this action
-            action_code_block = ""
-
+            # Handle loops and conditions
             if loop:
-                loop_var, list_var_str = self._parse_loop_string(loop)
-                action_code_block += f"        for {loop_var} in {list_var_str}:\n"
-
+                loop_var, list_var = self._parse_loop_string(loop)
+                print(f"DEBUG: loop_var={loop_var}, list_var={list_var}")
+                # We need to re-generate the call string for inside the loop
                 looped_config = self._substitute_loop_variable(config, loop_var)
-                call_code = plugin.get_function_call(looped_config)
-                # Indent for inside the for loop
-                call_code_indented = '\n'.join(['    ' + line for line in call_code.split('\n')])
+                call_in_loop = plugin.get_function_call(looped_config)
+                if plugin.output_variable_name:
+                    call_in_loop = f"variables['{plugin.output_variable_name}'] = {call_in_loop}"
+                print(f"DEBUG: call_in_loop = {call_in_loop}")
 
+                code += f"        for {loop_var} in {list_var}:\n"
                 if condition:
-                    formatted_condition = self._format_condition_string(condition, loop_var=loop_var)
-                    action_code_block += f"            if {formatted_condition}:\n"
-                    action_code_block += f"                print(f\"▶️  Executing conditional action in loop: {action_type}\")\n"
-                    # Indent for inside the if
-                    action_code_block += '\n'.join(['    ' + line for line in call_code_indented.split('\n')]) + '\n'
+                    cond_str = self._format_condition_string(condition, loop_var=loop_var)
+                    print(f"DEBUG: cond_str (in loop) = {cond_str}")
+                    code += f"            if {cond_str}:\n"
+                    code += f"                {call_in_loop}\n"
                 else:
-                    action_code_block += f"            print(f\"▶️  Executing action in loop: {action_type}\")\n"
-                    action_code_block += f"            {call_code_indented}\n"
-
+                    code += f"            {call_in_loop}\n"
             elif condition:
-                formatted_condition = self._format_condition_string(condition)
-                action_code_block += f"        if {formatted_condition}:\n"
-                action_code_block += f"            print(f\"▶️  Executing conditional action: {action_type}\")\n"
-                call_code = plugin.get_function_call(config)
-                indented_call_code = '\n'.join(['    ' + line for line in call_code.split('\n')])
-                action_code_block += f"            {indented_call_code}\n"
+                cond_str = self._format_condition_string(condition)
+                print(f"DEBUG: cond_str = {cond_str}")
+                code += f"        if {cond_str}:\n"
+                code += f"            {call_str}\n"
             else:
-                action_code_block += f"        print(f\"▶️  Executing action {i}: {action_type}\")\n"
-                call_code = plugin.get_function_call(config)
-                action_code_block += f"        {call_code}\n"
+                code += f"        {call_str}\n"
 
-            code += action_code_block
-
+        print(f"DEBUG: final generated code for actions:\n{code}")
         return code
 
     def _format_condition_string(self, condition: str, loop_var: str = None) -> str:

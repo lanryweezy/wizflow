@@ -15,6 +15,8 @@ class WebScrapePlugin(ActionPlugin):
     def name(self) -> str:
         return "web_scrape"
 
+    output_variable_name = "scraped_content"
+
     @property
     def required_imports(self) -> List[str]:
         return ["import requests", "from bs4 import BeautifulSoup"]
@@ -35,8 +37,6 @@ def scrape_web(url, selector=None):
             content = soup.get_text().strip()
 
         print(f"🕷️  Scraped content from {url}")
-        if content:
-            variables['scraped_content'] = content
         return content
     except Exception as e:
         print(f"❌ Web scraping failed: {e}")

@@ -100,6 +100,28 @@ class MockProvider(LLMProvider):
             return '''
             {
               "name": "Summarize Scraped Articles",
+        elif 'api call' in prompt_lower and 'email' in prompt_lower:
+            return '''
+            {
+              "name": "API to Email",
+              "description": "Call an API and email the result.",
+              "trigger": { "type": "manual" },
+              "actions": [
+                {
+                  "type": "api_call",
+                  "config": { "url": "https://api.example.com/data" }
+                },
+                {
+                  "type": "send_email",
+                  "config": {
+                    "to": "user@example.com",
+                    "subject": "API Data",
+                    "message": "The data is: {{api_result}}"
+                  }
+                }
+              ]
+            }
+            '''
               "description": "For each article scraped, summarize its content.",
               "trigger": { "type": "manual" },
               "actions": [
@@ -140,11 +162,14 @@ class MockProvider(LLMProvider):
             '''
 
 
+from .plugin_manager import PluginManager
+
 class LLMInterface:
     """Main interface for LLM operations"""
     
-    def __init__(self, config):
+    def __init__(self, config, plugin_manager: PluginManager):
         self.config = config
+        self.plugin_manager = plugin_manager
         self.provider = self._create_provider()
         self.system_prompt = self._get_system_prompt()
     
@@ -199,32 +224,61 @@ JSON Schema:
   ]
 }
 
-Available action types:
-- summarize: Summarize text using AI
-- send_email: Send email via SMTP
-- send_whatsapp: Send WhatsApp message
-- send_sms: Send SMS via Twilio
-- read_email: Read emails via IMAP
-- web_scrape: Scrape web content
-- file_process: Process files
-- api_call: Make HTTP API calls
-- schedule_task: Schedule recurring tasks
-- database_query: Query databases
-- spreadsheet_update: Update Google Sheets/Excel
+You can use the output of one action as the input for another.
+For example, the `api_call` action saves its result to a variable named `api_result`.
+You can use this in a subsequent action's config, like `message: 'The result is {{api_result.some_key}}'`.
 
-Tools/Libraries available:
-- gpt: For AI text processing
-- smtp: For sending emails
-- imap: For reading emails
-- requests: For HTTP requests
-- twilio: For SMS/WhatsApp
-- gspread: For Google Sheets
-- sqlite3: For local database
-- schedule: For task scheduling
-- beautifulsoup: For web scraping
+Available actions and their outputs:
+{action_list}
 
 Return ONLY the JSON, no explanation or code blocks.
 """
+        action_list_parts = []
+        all_plugins = self.plugin_manager.get_all_plugins()
+        for name, plugin in all_plugins.items():
+            part = f"- `{name}`"
+            if plugin.output_variable_name:
+                part += f" (saves output to `{plugin.output_variable_name}`)"
+            action_list_parts.append(part)
+
+        action_list = "\n".join(action_list_parts)
+        base_prompt = """
+You are a Python automation expert. Your job is to take natural language task descriptions and:
+1. Output ONLY a structured JSON describing the workflow
+2. The JSON should be ready to convert into Python code
+
+JSON Schema:
+{
+  "name": "Short descriptive name",
+  "description": "Brief description of what this workflow does",
+  "trigger": {
+    "type": "email|schedule|file|webhook|manual",
+    "filter": "Optional filter criteria",
+    "schedule": "Optional cron expression for scheduled tasks"
+  },
+  "actions": [
+    {
+      "type": "action_type",
+    "condition": "Optional: A Python expression string that must evaluate to True for the action to run. e.g. 'variables.get(\"price\", 0) > 100'",
+    "loop": "Optional: A Python 'for' loop expression over a list in 'variables'. e.g., 'item in scraped_content'",
+      "tool": "library_or_service",
+      "config": {
+        "parameter": "value"
+      }
+    }
+  ]
+}
+
+You can use the output of one action as the input for another.
+For example, the `api_call` action saves its result to a variable named `api_result`.
+You can use this in a subsequent action's config, like `message: 'The result is {{api_result.some_key}}'`.
+
+Available actions and their outputs:
+{action_list}
+
+Return ONLY the JSON, no explanation or code blocks.
+"""
+        return base_prompt.format(action_list=action_list)
     
     def generate_workflow(self, description: str) -> Dict[str, Any]:
         """Generate workflow JSON from natural language, with retries."""

@@ -26,9 +26,9 @@ class WizFlowCLI:
     
     def __init__(self):
         self.config = Config()
-        self.llm = LLMInterface(self.config)
-        self.builder = WorkflowBuilder(self.llm)
         self.generator = CodeGenerator()
+        self.llm = LLMInterface(self.config, self.generator.plugin_manager)
+        self.builder = WorkflowBuilder(self.llm)
         self.executor = WorkflowExecutor()
         self.credentials = CredentialManager()
         self.workflows_dir = Path("workflows")

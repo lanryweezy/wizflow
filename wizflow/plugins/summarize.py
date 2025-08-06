@@ -3,7 +3,7 @@ Summarize Text Action Plugin for WizFlow
 """
 
 from typing import Dict, Any, List
-from .base import ActionPlugin
+from .base import ActionPlugin, LoopVariable
 
 
 class SummarizePlugin(ActionPlugin):
@@ -14,6 +14,8 @@ class SummarizePlugin(ActionPlugin):
     @property
     def name(self) -> str:
         return "summarize"
+
+    output_variable_name = "summary"
 
     @property
     def required_imports(self) -> List[str]:
@@ -39,7 +41,6 @@ def summarize_text(text, max_length=100):
 
         summary = llm.provider.generate(prompt, system_prompt)
 
-        variables['summary'] = summary
         print(f"📝 Summary: {summary}")
         return summary
     except Exception as e:
@@ -48,8 +49,6 @@ def summarize_text(text, max_length=100):
 '''
 
     def get_function_call(self, config: Dict[str, Any]) -> str:
-        from wizflow.plugins.base import LoopVariable
-
         input_text_val = config.get('input_text', 'Sample text to summarize.')
 
         if isinstance(input_text_val, LoopVariable):

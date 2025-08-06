@@ -20,7 +20,9 @@ I hope this helps!
     mock_provider = MockProvider()
     mock_provider.generate = MagicMock(return_value=mock_response)
 
-    llm_interface = LLMInterface(config=MagicMock())
+    plugin_manager = MagicMock()
+    plugin_manager.get_all_plugins.return_value = {}
+    llm_interface = LLMInterface(config=MagicMock(), plugin_manager=plugin_manager)
     llm_interface.provider = mock_provider
 
     workflow = llm_interface.generate_workflow("test description")
@@ -43,7 +45,9 @@ def test_retry_mechanism():
     mock_provider = MockProvider()
     mock_provider.generate = MagicMock(side_effect=[invalid_json_response, valid_json_response])
 
-    llm_interface = LLMInterface(config=MagicMock())
+    plugin_manager = MagicMock()
+    plugin_manager.get_all_plugins.return_value = {}
+    llm_interface = LLMInterface(config=MagicMock(), plugin_manager=plugin_manager)
     llm_interface.provider = mock_provider
 
     workflow = llm_interface.generate_workflow("test description")
