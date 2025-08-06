@@ -76,6 +76,7 @@ class MockProvider(LLMProvider):
         {
           "name": "Email to WhatsApp Alert",
           "description": "Forward email summaries to WhatsApp",
+          "requirements": ["twilio", "openai"],
           "trigger": {
             "type": "email",
             "filter": "from:boss@example.com"
@@ -136,11 +137,13 @@ class LLMInterface:
 You are a Python automation expert. Your job is to take natural language task descriptions and:
 1. Output ONLY a structured JSON describing the workflow
 2. The JSON should be ready to convert into Python code
+3. Include any required Python packages in the "requirements" field.
 
 JSON Schema:
 {
   "name": "Short descriptive name",
   "description": "Brief description of what this workflow does",
+  "requirements": ["package-name-on-pip"],
   "trigger": {
     "type": "email|schedule|file|webhook|manual",
     "filter": "Optional filter criteria",
@@ -157,29 +160,21 @@ JSON Schema:
   ]
 }
 
-Available action types:
-- summarize: Summarize text using AI
-- send_email: Send email via SMTP
-- send_whatsapp: Send WhatsApp message
-- send_sms: Send SMS via Twilio
-- read_email: Read emails via IMAP
-- web_scrape: Scrape web content
-- file_process: Process files
-- api_call: Make HTTP API calls
-- schedule_task: Schedule recurring tasks
-- database_query: Query databases
-- spreadsheet_update: Update Google Sheets/Excel
+Available action types and their required packages:
+- summarize: Summarize text using AI (requires 'openai' or 'anthropic')
+- send_email: Send email via SMTP (no special package)
+- send_whatsapp: Send WhatsApp message (requires 'twilio')
+- send_sms: Send SMS via Twilio (requires 'twilio')
+- read_email: Read emails via IMAP (no special package)
+- web_scrape: Scrape web content (requires 'beautifulsoup4' and 'requests')
+- file_process: Process files (no special package)
+- api_call: Make HTTP API calls (requires 'requests')
+- schedule_task: Schedule recurring tasks (requires 'schedule')
+- database_query: Query databases (e.g., 'sqlite3' is built-in)
+- spreadsheet_update: Update Google Sheets/Excel (requires 'gspread')
 
-Tools/Libraries available:
-- gpt: For AI text processing
-- smtp: For sending emails
-- imap: For reading emails
-- requests: For HTTP requests
-- twilio: For SMS/WhatsApp
-- gspread: For Google Sheets
-- sqlite3: For local database
-- schedule: For task scheduling
-- beautifulsoup: For web scraping
+Example for a web scraping task:
+"requirements": ["requests", "beautifulsoup4"],
 
 Return ONLY the JSON, no explanation or code blocks.
 """

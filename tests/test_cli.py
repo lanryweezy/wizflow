@@ -1,0 +1,116 @@
+import pytest
+from unittest.mock import patch, MagicMock
+import sys
+from pathlib import Path
+
+from wizflow.cli import main
+
+@patch('wizflow.cli.WizFlowCLI')
+def test_main_generate(MockWizFlowCLI, capsys):
+    """Test the 'generate' command."""
+    mock_cli_instance = MockWizFlowCLI.return_value
+    mock_cli_instance.generate_workflow.return_value = ('/path/to/workflow.json', '/path/to/workflow.py')
+
+    with patch('builtins.input', return_value='n'):
+        sys.argv = ['wizflow', 'generate', 'test description', '--name', 'test_workflow']
+        main()
+
+    mock_cli_instance.generate_workflow.assert_called_once_with('test description', 'test_workflow')
+
+    # Check that it doesn't ask to run if input is 'n'
+    mock_cli_instance.run_workflow.assert_not_called()
+
+@patch('wizflow.cli.WizFlowCLI')
+def test_main_generate_and_run(MockWizFlowCLI, capsys):
+    """Test the 'generate' command with immediate run."""
+    mock_cli_instance = MockWizFlowCLI.return_value
+    mock_cli_instance.generate_workflow.return_value = ('/path/to/workflow.json', 'workflows/test_workflow.py')
+
+    with patch('builtins.input', return_value='y'):
+        sys.argv = ['wizflow', 'generate', 'test description']
+        main()
+
+    mock_cli_instance.generate_workflow.assert_called_once_with('test description', None)
+    mock_cli_instance.run_workflow.assert_called_once_with('test_workflow')
+
+@patch('wizflow.cli.WizFlowCLI')
+def test_main_list(MockWizFlowCLI, capsys):
+    """Test the 'list' command."""
+    mock_cli_instance = MockWizFlowCLI.return_value
+
+    sys.argv = ['wizflow', 'list']
+    main()
+
+    mock_cli_instance.list_workflows.assert_called_once()
+
+@patch('wizflow.cli.WizFlowCLI')
+def test_main_list_alias(MockWizFlowCLI, capsys):
+    """Test the 'ls' alias for the 'list' command."""
+    mock_cli_instance = MockWizFlowCLI.return_value
+
+    sys.argv = ['wizflow', 'ls']
+    main()
+
+    mock_cli_instance.list_workflows.assert_called_once()
+
+@patch('wizflow.cli.WizFlowCLI')
+def test_main_run(MockWizFlowCLI, capsys):
+    """Test the 'run' command."""
+    mock_cli_instance = MockWizFlowCLI.return_value
+
+    sys.argv = ['wizflow', 'run', 'my_workflow']
+    main()
+
+    mock_cli_instance.run_workflow.assert_called_once_with('my_workflow')
+
+@patch('wizflow.cli.WizFlowCLI')
+def test_main_export(MockWizFlowCLI, capsys):
+    """Test the 'export' command."""
+    mock_cli_instance = MockWizFlowCLI.return_value
+
+    sys.argv = ['wizflow', 'export', 'my_workflow']
+    main()
+
+    mock_cli_instance.export_workflow.assert_called_once_with('my_workflow')
+
+@patch('wizflow.cli.WizFlowCLI')
+def test_main_config(MockWizFlowCLI, capsys):
+    """Test the 'config' command."""
+    mock_cli_instance = MockWizFlowCLI.return_value
+
+    sys.argv = ['wizflow', 'config', 'openai_key', 'my_key']
+    main()
+
+    mock_cli_instance.config.set.assert_called_once_with('openai_key', 'my_key')
+
+@patch('wizflow.cli.WizFlowCLI')
+def test_main_credentials(MockWizFlowCLI, capsys):
+    """Test the 'credentials' command."""
+    mock_cli_instance = MockWizFlowCLI.return_value
+
+    sys.argv = ['wizflow', 'credentials', 'set', 'smtp_user', 'my_user']
+    main()
+
+    mock_cli_instance.credentials.set_credential.assert_called_once_with('smtp_user', 'my_user')
+
+def test_main_no_command(capsys):
+    """Test running with no command."""
+    with pytest.raises(SystemExit) as e:
+        sys.argv = ['wizflow']
+        main()
+
+    assert e.value.code != 0
+    captured = capsys.readouterr()
+    assert 'usage: wizflow' in captured.err
+    assert 'the following arguments are required: command' in captured.err
+
+def test_main_invalid_command(capsys):
+    """Test running with an invalid command."""
+    with pytest.raises(SystemExit) as e:
+        sys.argv = ['wizflow', 'invalid_command']
+        main()
+
+    assert e.value.code != 0
+    captured = capsys.readouterr()
+    assert 'usage: wizflow' in captured.err
+    assert "invalid choice: 'invalid_command'" in captured.err

@@ -78,19 +78,24 @@ class WizFlowCLI:
     def run_workflow(self, workflow_name: str):
         """Run a saved workflow"""
         py_path = self.workflows_dir / f"{workflow_name}.py"
-        if not py_path.exists():
+        json_path = self.workflows_dir / f"{workflow_name}.json"
+
+        if not py_path.exists() or not json_path.exists():
             print(f"❌ Workflow '{workflow_name}' not found")
             return
         
         print(f"🚀 Running {workflow_name}...")
 
         # Dependency check before running
-        print("🔬 Analyzing dependencies...")
-        analysis = self.executor.dry_run(str(py_path))
-        if analysis['success'] and analysis['analysis'].get('potential_issues'):
-            missing_packages = self._check_for_missing_packages(analysis['analysis']['imports'])
+        with open(json_path, 'r') as f:
+            workflow_data = json.load(f)
+
+        requirements = workflow_data.get("requirements")
+        if requirements:
+            print("🔬 Checking dependencies...")
+            missing_packages = self._check_for_missing_packages(requirements)
             if missing_packages:
-                print(f"⚠️  This workflow may require the following packages: {', '.join(missing_packages)}")
+                print(f"⚠️  This workflow requires the following packages: {', '.join(missing_packages)}")
                 response = input("→ Install them now? (y/N): ").strip().lower()
                 if response in ['y', 'yes']:
                     install_result = self.executor.install_dependencies(missing_packages)
@@ -125,41 +130,22 @@ class WizFlowCLI:
         
         print(f"📦 Exported {workflow_name}.json and {workflow_name}.py to current directory")
 
-    def _check_for_missing_packages(self, imports: list) -> list:
+    def _check_for_missing_packages(self, packages: list) -> list:
         """Check if any of the required packages are not installed."""
         import importlib
         missing = []
-        # We only care about top-level packages that are likely to be installed via pip
-        potential_packages = {'requests', 'twilio', 'beautifulsoup4', 'gspread', 'schedule'}
+        # Mapping from package name to import name
+        package_to_import_map = {
+            "beautifulsoup4": "bs4",
+        }
 
-        for imp in imports:
-            # e.g., "bs4" is the module name for "beautifulsoup4"
-            if imp == 'bs4': imp = 'beautifulsoup4'
-
-            if imp in potential_packages:
-                try:
-                    importlib.import_module(imp)
-                except ImportError:
-                    missing.append(imp)
+        for package in packages:
+            import_name = package_to_import_map.get(package, package)
+            try:
+                importlib.import_module(import_name)
+            except ImportError:
+                missing.append(package)
         return missing
-
-    def manage_credentials(self, args: list):
-        """Manage user credentials"""
-        if not args or len(args) < 2:
-            print("❌ Invalid credentials command. Use: wizflow --credentials set <key> <value>")
-            return
-
-        action = args[0].lower()
-        if action == 'set':
-            if len(args) != 3:
-                print("❌ Invalid 'set' command. Use: --credentials set <key> <value>")
-                return
-            key, value = args[1], args[2]
-            self.credentials.set_credential(key, value)
-            print(f"✅ Credential '{key}' set.")
-        else:
-            print(f"❌ Unknown credentials command: {action}")
-
 
 def main():
     """Main CLI entry point"""
@@ -168,52 +154,77 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  wizflow "When I get an email from boss, summarize and send to WhatsApp"
+  wizflow generate "When I get an email from boss, summarize and send to WhatsApp"
   wizflow list
   wizflow run my_workflow
   wizflow export my_workflow
-        """
+  wizflow config openai_key your_openai_api_key
+  wizflow credentials set smtp_user my_username
+"""
     )
+
+    subparsers = parser.add_subparsers(dest="command", help="Available commands", required=True)
+
+    # Generate command
+    generate_parser = subparsers.add_parser("generate", help="Generate a new workflow from a natural language description")
+    generate_parser.add_argument("description", help="Natural language description of the workflow")
+    generate_parser.add_argument("--name", "-n", help="Custom name for the workflow")
+
+    # List command
+    subparsers.add_parser("list", aliases=["ls"], help="List all saved workflows")
+
+    # Run command
+    run_parser = subparsers.add_parser("run", help="Run a saved workflow")
+    run_parser.add_argument("workflow_name", help="Name of the workflow to run")
+
+    # Export command
+    export_parser = subparsers.add_parser("export", help="Export a workflow to the current directory")
+    export_parser.add_argument("workflow_name", help="Name of the workflow to export")
+
+    # Config command
+    config_parser = subparsers.add_parser("config", help="Set a configuration value")
+    config_parser.add_argument("key", help="Configuration key")
+    config_parser.add_argument("value", help="Configuration value")
+
+    # Credentials command
+    credentials_parser = subparsers.add_parser("credentials", help="Manage credentials")
+    cred_subparsers = credentials_parser.add_subparsers(dest="action", required=True)
     
-    parser.add_argument('command', nargs='?', help='Natural language description or command')
-    parser.add_argument('--name', '-n', help='Custom name for the workflow')
-    parser.add_argument('--run', '-r', help='Run a saved workflow')
-    parser.add_argument('--list', '-l', action='store_true', help='List all saved workflows')
-    parser.add_argument('--export', '-e', help='Export a workflow to current directory')
-    parser.add_argument('--config', '-c', help='Set configuration (e.g., --config openai_key=your_key)')
-    parser.add_argument('--credentials', nargs='+', help='Manage credentials (e.g., --credentials set smtp_user myuser)')
-    
+    cred_set_parser = cred_subparsers.add_parser("set", help="Set a credential")
+    cred_set_parser.add_argument("key", help="Credential key")
+    cred_set_parser.add_argument("value", help="Credential value")
+
     args = parser.parse_args()
     
     cli = WizFlowCLI()
     
     try:
-        if args.list:
+        if args.command == "generate":
+            json_path, py_path = cli.generate_workflow(args.description, args.name)
+
+            response = input("→ Run now? (y/N): ").strip().lower()
+            if response in ["y", "yes"]:
+                workflow_name = Path(py_path).stem
+                cli.run_workflow(workflow_name)
+
+        elif args.command in ["list", "ls"]:
             cli.list_workflows()
-        elif args.run:
-            cli.run_workflow(args.run)
-        elif args.export:
-            cli.export_workflow(args.export)
-        elif args.config:
-            key, value = args.config.split('=', 1)
-            cli.config.set(key, value)
-            print(f"✅ Set {key} configuration")
-        elif args.credentials:
-            cli.manage_credentials(args.credentials)
-        elif args.command:
-            if args.command in ['list', 'ls']:
-                cli.list_workflows()
-            else:
-                json_path, py_path = cli.generate_workflow(args.command, args.name)
-                
-                # Ask if user wants to run immediately
-                response = input("→ Run now? (y/N): ").strip().lower()
-                if response in ['y', 'yes']:
-                    workflow_name = Path(py_path).stem
-                    cli.run_workflow(workflow_name)
-        else:
-            parser.print_help()
-    
+
+        elif args.command == "run":
+            cli.run_workflow(args.workflow_name)
+
+        elif args.command == "export":
+            cli.export_workflow(args.workflow_name)
+
+        elif args.command == "config":
+            cli.config.set(args.key, args.value)
+            print(f"✅ Set {args.key} configuration")
+
+        elif args.command == "credentials":
+            if args.action == "set":
+                cli.credentials.set_credential(args.key, args.value)
+                print(f"✅ Credential '{args.key}' set.")
+
     except KeyboardInterrupt:
         print("\n👋 Goodbye!")
         sys.exit(0)
@@ -222,5 +233,5 @@ Examples:
         sys.exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

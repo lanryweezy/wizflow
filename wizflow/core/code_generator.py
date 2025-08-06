@@ -112,7 +112,7 @@ def _secure_import(name, globals=None, locals=None, fromlist=(), level=0):
         # Check for submodules
         parts = name.split('.')
         if parts[0] not in ALLOWED_MODULES:
-            raise ImportError(f"Disallowed import: '{name}'")
+            raise ImportError(f"Disallowed import: '{{name}}'")
 
     return _original_import(name, globals, locals, fromlist, level)
 
