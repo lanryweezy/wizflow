@@ -16,6 +16,7 @@ from .core.code_generator import CodeGenerator
 from .executors.workflow_executor import WorkflowExecutor
 from .core.config import Config
 from .core.credentials import CredentialManager
+from .interactive_builder import InteractiveWorkflowBuilder
 
 
 class WizFlowCLI:
@@ -31,6 +32,40 @@ class WizFlowCLI:
         self.workflows_dir = Path("workflows")
         self.workflows_dir.mkdir(exist_ok=True)
     
+    def interactive_workflow(self):
+        """Starts an interactive session to build a workflow."""
+        builder = InteractiveWorkflowBuilder()
+        workflow_json = builder.build()
+
+        if not workflow_json or not workflow_json.get('name') or not workflow_json.get('actions'):
+            print("\nWorkflow creation cancelled or incomplete. Exiting.")
+            return
+
+        print("\n✅ Workflow created successfully!")
+
+        output_name = workflow_json.get('name', 'interactive_workflow').lower().replace(' ', '_')
+
+        # Generate Python code
+        python_code = self.generator.generate_code(workflow_json)
+
+        # Save files
+        json_path = self.workflows_dir / f"{output_name}.json"
+        py_path = self.workflows_dir / f"{output_name}.py"
+
+        with open(json_path, 'w') as f:
+            json.dump(workflow_json, f, indent=2)
+
+        with open(py_path, 'w') as f:
+            f.write(python_code)
+
+        print(f"✅ JSON Workflow Created: {json_path}")
+        print(f"✅ Python Code Generated: {py_path}")
+
+        # Ask if user wants to run immediately
+        response = input("→ Run now? (y/N): ").strip().lower()
+        if response in ['y', 'yes']:
+            self.run_workflow(output_name)
+
     def generate_workflow(self, description: str, output_name: Optional[str] = None) -> tuple[str, str]:
         """Generate workflow from natural language description"""
         print(f"🧠 Analyzing: {description}")
@@ -170,6 +205,9 @@ Examples:
     generate_parser.add_argument("description", help="Natural language description of the workflow")
     generate_parser.add_argument("--name", "-n", help="Custom name for the workflow")
 
+    # Interactive command
+    subparsers.add_parser("interactive", help="Create a new workflow interactively")
+
     # List command
     subparsers.add_parser("list", aliases=["ls"], help="List all saved workflows")
 
@@ -206,6 +244,9 @@ Examples:
             if response in ["y", "yes"]:
                 workflow_name = Path(py_path).stem
                 cli.run_workflow(workflow_name)
+
+        elif args.command == "interactive":
+            cli.interactive_workflow()
 
         elif args.command in ["list", "ls"]:
             cli.list_workflows()
