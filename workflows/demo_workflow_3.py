@@ -23,7 +23,7 @@ except ImportError:
 import json
 _original_import = __import__
 def _secure_import(name, globals=None, locals=None, fromlist=(), level=0):
-    ALLOWED_MODULES = set(json.loads('["wizflow.core.credentials", "typing", "wizflow.core.llm_interface", "wizflow.core.config", "sys", "datetime", "json", "os"]'))
+    ALLOWED_MODULES = set(json.loads('["typing", "os", "wizflow.core.llm_interface", "datetime", "sys", "json", "wizflow.core.credentials", "wizflow.core.config"]'))
 
     # Allow relative imports
     if name.startswith('wizflow.') and level > 0:

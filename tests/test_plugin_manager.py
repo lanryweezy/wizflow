@@ -16,6 +16,7 @@ def test_plugin_manager_discovery():
         "file_process",
         "send_whatsapp",
         "summarize",
+        "log_message",
     ]
 
     assert len(all_plugins) == len(expected_plugins)

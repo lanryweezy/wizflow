@@ -172,6 +172,7 @@ Available action types and their required packages:
 - schedule_task: Schedule recurring tasks (requires 'schedule')
 - database_query: Query databases (e.g., 'sqlite3' is built-in)
 - spreadsheet_update: Update Google Sheets/Excel (requires 'gspread')
+- log_message: Log a message to the console (no special package)
 
 Example for a web scraping task:
 "requirements": ["requests", "beautifulsoup4"],
