@@ -7,18 +7,20 @@ from typing import Dict, Any, List, Set
 
 from .plugin_manager import PluginManager
 from wizflow.plugins.base import ActionPlugin
+from ..logger import get_logger
 
 
 class CodeGenerator:
     """Generates Python code from workflow JSON using a plugin architecture"""
 
     def __init__(self):
-        print("Initializing PluginManager to load plugins...")
+        self.logger = get_logger(__name__)
+        self.logger.debug("Initializing PluginManager to load plugins...")
         self.plugin_manager = PluginManager()
 
     def generate_code(self, workflow: Dict[str, Any]) -> str:
         """Generate Python code from workflow JSON"""
-        print("🔄 Generating Python code using plugin architecture...")
+        self.logger.debug("🔄 Generating Python code using plugin architecture...")
 
         required_plugins = self._get_required_plugins(workflow)
         
@@ -43,7 +45,7 @@ class CodeGenerator:
             if plugin:
                 plugins.add(plugin)
             else:
-                print(f"⚠️  Warning: No plugin found for action type '{action_type}'. It will be skipped.")
+                self.logger.warning(f"⚠️  Warning: No plugin found for action type '{action_type}'. It will be skipped.")
         return plugins
 
     def _get_allowed_modules(self, plugins: Set[ActionPlugin]) -> Set[str]:
@@ -51,7 +53,7 @@ class CodeGenerator:
         Gathers a set of all module names that should be whitelisted for import.
         """
         # Start with a set of always-allowed, basic modules
-        allowed = {'json', 'sys', 'datetime', 'typing', 'os'}
+        allowed = {'json', 'sys', 'datetime', 'typing', 'os', 'logging'}
         
         for plugin in plugins:
             for imp in plugin.required_imports:
@@ -83,8 +85,18 @@ Auto-generated workflow by WizFlow
 import json
 import os
 import sys
+import logging
 from datetime import datetime
 from typing import Dict, Any
+
+# --- Logger Setup ---
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+handler = logging.StreamHandler(sys.stdout)
+handler.setFormatter(logging.Formatter('%(message)s'))
+if not logger.handlers:
+    logger.addHandler(handler)
+# --- End Logger Setup ---
 
 # Assuming wizflow is installed or in python path
 try:
@@ -93,7 +105,7 @@ except ImportError:
     # Fallback for running script standalone
     class CredentialManager:
         def load_credentials(self):
-            print("Warning: Standalone script, credentials will be empty.")
+            logger.warning("Warning: Standalone script, credentials will be empty.")
             return {{}}
 
 # --- Security Sandbox: Restrict Imports ---
@@ -161,8 +173,8 @@ def run_workflow():
     Main workflow function: {name}
     Description: {description}
     """
-    print(f"🚀 Starting workflow: {name}")
-    print(f"📋 Description: {description}")
+    logger.info(f"🚀 Starting workflow: {name}")
+    logger.info(f"📋 Description: {description}")
 
     # Initialize variables for data passing between actions
     variables = {{}}
@@ -171,9 +183,9 @@ def run_workflow():
     try:
         cred_manager = CredentialManager()
         credentials = cred_manager.load_credentials()
-        print("🔒 Credentials loaded.")
+        logger.debug("🔒 Credentials loaded.")
     except Exception as e:
-        print(f"❌ Error loading credentials: {{e}}")
+        logger.error(f"❌ Error loading credentials: {{e}}")
         credentials = {{}}
 
     try:
@@ -181,11 +193,11 @@ def run_workflow():
         action_calls_code = self._generate_action_calls(workflow)
 
         main_func_footer = '''
-        print("✅ Workflow completed successfully")
+        logger.info("✅ Workflow completed successfully")
         return True
         
     except Exception as e:
-        print(f"❌ Workflow failed: {e}")
+        logger.error(f"❌ Workflow failed: {e}")
         return False
 '''
         return main_func_header + action_calls_code + main_func_footer
@@ -197,7 +209,7 @@ def run_workflow():
             action_type = action.get('type', 'unknown')
 
             code += f"\n        # Action {i}: {action_type}\n"
-            code += f"        print(f\"▶️  Executing action {i}: {action_type}\")\n"
+            code += f"        logger.info(f\"▶️  Executing action {i}: {action_type}\")\n"
 
             plugin = self.plugin_manager.get_plugin(action_type)
             if plugin:
@@ -206,7 +218,7 @@ def run_workflow():
                 indented_lines = ['        ' + line for line in call_code.split('\n')]
                 code += '\n'.join(indented_lines) + '\n'
             else:
-                code += f"        print(\"🤷‍♂️ Action '{action_type}' skipped (no plugin found).\")\n"
+                code += f"        logger.warning(\"🤷‍♂️ Action '{action_type}' skipped (no plugin found).\")\n"
         
         return code
 

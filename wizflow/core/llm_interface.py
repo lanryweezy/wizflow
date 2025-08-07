@@ -7,6 +7,8 @@ import re
 from typing import Dict, Any, Optional
 from abc import ABC, abstractmethod
 
+from ..logger import get_logger
+
 
 class LLMProvider(ABC):
     """Abstract base class for LLM providers"""
@@ -105,6 +107,7 @@ class LLMInterface:
     """Main interface for LLM operations"""
     
     def __init__(self, config):
+        self.logger = get_logger(__name__)
         self.config = config
         self.provider = self._create_provider()
         self.system_prompt = self._get_system_prompt()
@@ -116,19 +119,19 @@ class LLMInterface:
         if provider_name == 'openai':
             api_key = self.config.openai_key
             if not api_key:
-                print("⚠️  No OpenAI API key found, using mock provider")
+                self.logger.warning("⚠️  No OpenAI API key found, using mock provider")
                 return MockProvider()
             return OpenAIProvider(api_key, self.config.model_name)
         
         elif provider_name == 'anthropic':
             api_key = self.config.anthropic_key
             if not api_key:
-                print("⚠️  No Anthropic API key found, using mock provider")
+                self.logger.warning("⚠️  No Anthropic API key found, using mock provider")
                 return MockProvider()
             return AnthropicProvider(api_key, self.config.model_name)
         
         else:
-            print(f"⚠️  Unknown provider '{provider_name}', using mock provider")
+            self.logger.warning(f"⚠️  Unknown provider '{provider_name}', using mock provider")
             return MockProvider()
     
     def _get_system_prompt(self) -> str:

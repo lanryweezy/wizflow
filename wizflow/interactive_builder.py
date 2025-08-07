@@ -5,6 +5,7 @@ Guides the user through creating a workflow step-by-step.
 
 from typing import Dict, Any, List
 from wizflow.core.plugin_manager import PluginManager
+from wizflow.logger import get_logger
 
 
 class InteractiveWorkflowBuilder:
@@ -13,6 +14,7 @@ class InteractiveWorkflowBuilder:
     """
 
     def __init__(self):
+        self.logger = get_logger(__name__)
         self.workflow: Dict[str, Any] = {
             "name": "",
             "description": "",
@@ -26,8 +28,8 @@ class InteractiveWorkflowBuilder:
         """
         Starts the interactive building process and returns the completed workflow.
         """
-        print("🧙‍♂️ Welcome to the interactive workflow builder!")
-        print("Let's create a new workflow together.")
+        self.logger.info("🧙‍♂️ Welcome to the interactive workflow builder!")
+        self.logger.info("Let's create a new workflow together.")
 
         self._get_name_and_description()
         self._get_trigger()
@@ -42,12 +44,12 @@ class InteractiveWorkflowBuilder:
 
     def _get_trigger(self):
         """Guides the user through selecting and configuring a trigger."""
-        print("\n--- Trigger Setup ---")
+        self.logger.info("\n--- Trigger Setup ---")
         trigger_types = ["manual", "schedule", "email", "webhook", "file"]
 
-        print("Available trigger types:")
+        self.logger.info("Available trigger types:")
         for i, t_type in enumerate(trigger_types, 1):
-            print(f"  {i}. {t_type}")
+            self.logger.info(f"  {i}. {t_type}")
 
         try:
             choice = input("▶️  Choose a trigger type (number): ")
@@ -63,18 +65,18 @@ class InteractiveWorkflowBuilder:
                     email_filter = input("▶️  Enter a filter for incoming emails (e.g., 'from:boss@example.com'): ")
                     self.workflow['trigger']['filter'] = email_filter
 
-                print(f"✅ Trigger configured: {trigger_type}")
+                self.logger.info(f"✅ Trigger configured: {trigger_type}")
             else:
-                print("⚠️ Invalid choice. Defaulting to 'manual' trigger.")
+                self.logger.warning("⚠️ Invalid choice. Defaulting to 'manual' trigger.")
                 self.workflow['trigger']['type'] = 'manual'
         except (ValueError, IndexError):
-            print("⚠️ Invalid input. Defaulting to 'manual' trigger.")
+            self.logger.warning("⚠️ Invalid input. Defaulting to 'manual' trigger.")
             self.workflow['trigger']['type'] = 'manual'
 
 
     def _get_actions(self):
         """Guides the user through adding and configuring actions."""
-        print("\n--- Action Setup ---")
+        self.logger.info("\n--- Action Setup ---")
         available_plugins = self.plugin_manager.get_all_plugins()
         plugin_names = list(available_plugins.keys())
 
@@ -95,10 +97,10 @@ class InteractiveWorkflowBuilder:
 
 
         while True:
-            print("\nAvailable actions:")
+            self.logger.info("\nAvailable actions:")
             for i, name in enumerate(plugin_names, 1):
-                print(f"  {i}. {name}")
-            print(f"  {len(plugin_names) + 1}. Done adding actions")
+                self.logger.info(f"  {i}. {name}")
+            self.logger.info(f"  {len(plugin_names) + 1}. Done adding actions")
 
             try:
                 choice = input("▶️  Choose an action to add (number): ")
@@ -107,14 +109,14 @@ class InteractiveWorkflowBuilder:
                 if 0 <= choice_index < len(plugin_names):
                     action_name = plugin_names[choice_index]
 
-                    print(f"\nConfiguring '{action_name}' action:")
+                    self.logger.info(f"\nConfiguring '{action_name}' action:")
                     action_config = {}
 
                     if action_name in param_map:
                         for param_key, param_prompt in param_map[action_name]:
                             action_config[param_key] = input(f"▶️  {param_prompt}: ")
                     else:
-                        print(f"⚠️  Interactive configuration for '{action_name}' is not fully supported yet. You may need to edit the JSON file manually.")
+                        self.logger.warning(f"⚠️  Interactive configuration for '{action_name}' is not fully supported yet. You may need to edit the JSON file manually.")
 
                     self.workflow['actions'].append({"type": action_name, "config": action_config})
 
@@ -122,17 +124,17 @@ class InteractiveWorkflowBuilder:
                     if action_name in package_map:
                         self.workflow['requirements'].extend(package_map[action_name])
 
-                    print(f"✅ Action '{action_name}' added.")
+                    self.logger.info(f"✅ Action '{action_name}' added.")
 
                 elif choice_index == len(plugin_names):
                     if not self.workflow['actions']:
-                        print("⚠️  You haven't added any actions.")
+                        self.logger.warning("⚠️  You haven't added any actions.")
                         continue
                     break
                 else:
-                    print("⚠️ Invalid choice.")
+                    self.logger.warning("⚠️ Invalid choice.")
             except (ValueError, IndexError):
-                print("⚠️ Invalid input.")
+                self.logger.warning("⚠️ Invalid input.")
 
         # Remove duplicate requirements
         if self.workflow['requirements']:

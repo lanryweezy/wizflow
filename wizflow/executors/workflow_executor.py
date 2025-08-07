@@ -79,7 +79,7 @@ class WorkflowExecutor:
         except subprocess.TimeoutExpired:
             return {
                 "success": False,
-                "error": f"Workflow execution timed out after {exec_timeout} seconds",
+                "error": f"Workflow execution timed out after {exec_timeout} seconds. The workflow may be stuck in an infinite loop or waiting for input.",
                 "output": "",
                 "exit_code": 124
             }
@@ -87,7 +87,7 @@ class WorkflowExecutor:
         except Exception as e:
             return {
                 "success": False,
-                "error": str(e),
+                "error": f"An unexpected error occurred while trying to execute the workflow: {e}",
                 "output": "",
                 "exit_code": 1
             }
@@ -115,9 +115,10 @@ class WorkflowExecutor:
             }
         
         except SyntaxError as e:
+            error_line = e.text.strip() if e.text else ""
             return {
                 "valid": False,
-                "error": f"Syntax error: {e}"
+                "error": f"Syntax error in '{script_path.name}' at line {e.lineno}: {error_line}"
             }
         
         except Exception as e:

@@ -30,8 +30,8 @@ def send_whatsapp(to_number, message, creds={}):
     from_whatsapp_number = creds.get("twilio_whatsapp_from")
 
     if not all([account_sid, auth_token, from_whatsapp_number]):
-        print("❌ Twilio credentials (twilio_sid, twilio_token, twilio_whatsapp_from) not found.")
-        print(f"📱 Mocking WhatsApp to {to_number}: {message}")
+        logger.warning("❌ Twilio credentials (twilio_sid, twilio_token, twilio_whatsapp_from) not found.")
+        logger.info(f"📱 Mocking WhatsApp to {to_number}: {message}")
         return False
 
     try:
@@ -42,13 +42,13 @@ def send_whatsapp(to_number, message, creds={}):
             body=message,
             to=f'whatsapp:{to_number}'
         )
-        print(f"📱 WhatsApp sent to {to_number} (SID: {msg.sid})")
+        logger.info(f"📱 WhatsApp sent to {to_number} (SID: {msg.sid})")
         return True
     except ImportError:
-        print("❌ Twilio library not installed. Please run: pip install twilio")
+        logger.error("❌ Twilio library not installed. Please run: pip install twilio")
         return False
     except Exception as e:
-        print(f"❌ Failed to send WhatsApp: {e}")
+        logger.error(f"❌ Failed to send WhatsApp: {e}")
         return False
 '''
 
