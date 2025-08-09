@@ -148,13 +148,27 @@ WORKFLOW_INFO = {metadata}
         for plugin in plugins:
             imports.update(plugin.required_imports)
 
+        # Check for triggers or actions that require the 'time' module
+        needs_time_module = False
+
         trigger_type = workflow.get("trigger", {}).get("type")
-        if trigger_type == 'file':
+        if trigger_type in ['file', 'schedule']:
+            needs_time_module = True
+
+        # Check if any action has a retry policy
+        for action in workflow.get('actions', []):
+            if action.get('on_error', {}).get('retry'):
+                needs_time_module = True
+                break
+
+        if needs_time_module:
             imports.add("import time")
+
+        # Add other trigger-specific imports
+        if trigger_type == 'file':
             imports.add("from watchdog.observers import Observer")
             imports.add("from watchdog.events import FileSystemEventHandler")
         elif trigger_type == 'schedule':
-            imports.add("import time")
             imports.add("from croniter import croniter")
         elif trigger_type == 'webhook':
             imports.add("from http.server import BaseHTTPRequestHandler, HTTPServer")
@@ -219,18 +233,47 @@ def run_workflow(trigger_data: Dict[str, Any] = None):
         for i, action in enumerate(workflow.get('actions', []), 1):
             action_type = action.get('type', 'unknown')
 
-            code += f"\n        # Action {i}: {action_type}\n"
+            code += f"\n        # --- Action {i}: {action_type} ---\n"
             code += f"        logger.info(f\"▶️  Executing action {i}: {action_type}\")\n"
 
             plugin = self.plugin_manager.get_action_plugin(action_type)
-            if plugin:
-                call_code = plugin.get_function_call(action.get('config', {}))
-                # The action call will return a dictionary of new variables
+            if not plugin:
+                code += f"        logger.warning(\"🤷‍♂️ Action '{action_type}' skipped (no plugin found).\")\n"
+                continue
+
+            call_code = plugin.get_function_call(action.get('config', {}))
+            on_error_config = action.get('on_error')
+
+            retry_config = on_error_config.get('retry') if on_error_config else None
+
+            if retry_config and isinstance(retry_config, dict):
+                retry_count = retry_config.get('count', 3)
+                retry_delay = retry_config.get('delay_seconds', 5)
+
+                code += f"        action_success = False\n"
+                code += f"        for attempt in range({retry_count}):\n"
+                code += f"            try:\n"
+                code += f"                logger.debug(f\"Attempt {{attempt + 1}}/{retry_count} for action '{action_type}'...\")\n"
+                code += f"                new_variables = {call_code}\n"
+                code += "                if isinstance(new_variables, dict):\n"
+                code += "                    variables.update(new_variables)\n"
+                code += f"                logger.info(f\"✅ Action '{action_type}' completed successfully on attempt {{attempt + 1}}.\")\n"
+                code += f"                action_success = True\n"
+                code += f"                break\n"
+                code += f"            except Exception as e:\n"
+                code += f"                logger.warning(f\"⚠️  Attempt {{attempt + 1}}/{retry_count} for action '{action_type}' failed: {{e}}\")\n"
+                code += f"                if attempt < {retry_count - 1}:\n"
+                code += f"                    logger.info(f\"Retrying in {retry_delay} seconds...\")\n"
+                code += f"                    time.sleep({retry_delay})\n"
+                code += f"        if not action_success:\n"
+                code += f"            logger.error(f\"❌ Action '{action_type}' failed after {retry_count} attempts.\")\n"
+                code += f"            raise RuntimeError(f\"Action '{action_type}' failed permanently.\")\n"
+
+            else:
+                # No retry logic, execute directly. The main try/except will handle failure.
                 code += f"        new_variables = {call_code}\n"
                 code += "        if isinstance(new_variables, dict):\n"
                 code += "            variables.update(new_variables)\n"
-            else:
-                code += f"        logger.warning(\"🤷‍♂️ Action '{action_type}' skipped (no plugin found).\")\n"
         
         return code
 
