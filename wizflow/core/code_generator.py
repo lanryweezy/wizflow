@@ -153,6 +153,9 @@ WORKFLOW_INFO = {metadata}
             imports.add("import time")
             imports.add("from watchdog.observers import Observer")
             imports.add("from watchdog.events import FileSystemEventHandler")
+        elif trigger_type == 'schedule':
+            imports.add("import time")
+            imports.add("from croniter import croniter")
 
         if not imports:
             return ""
@@ -260,6 +263,29 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         observer.stop()
     observer.join()
+'''
+        elif trigger_type == "schedule":
+            schedule = workflow.get("trigger", {}).get("schedule", "* * * * *")
+            return f'''
+if __name__ == "__main__":
+    schedule_str = "{schedule}"
+    logger.info(f"Running on schedule: {{schedule_str}}")
+    base_time = datetime.now()
+    while True:
+        try:
+            iter = croniter(schedule_str, base_time)
+            next_run_time = iter.get_next(datetime)
+
+            sleep_seconds = (next_run_time - datetime.now()).total_seconds()
+
+            if sleep_seconds > 0:
+                time.sleep(sleep_seconds)
+
+            run_workflow()
+            base_time = datetime.now()
+        except Exception as e:
+            logger.error(f"Error in scheduler: {{e}}")
+            time.sleep(60)
 '''
         else:
             return f'''
