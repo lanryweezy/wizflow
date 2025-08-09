@@ -71,40 +71,105 @@ class MockProvider(LLMProvider):
     """Mock provider for testing without API keys"""
     
     def generate(self, prompt: str, system_prompt: str = "") -> str:
-        """Generate mock response"""
-        return '''
-        {
-          "name": "Email to WhatsApp Alert",
-          "description": "Forward email summaries to WhatsApp",
-          "trigger": {
-            "type": "email",
-            "filter": "from:boss@example.com"
-          },
-          "actions": [
+        """Generate mock response, checking for conditional keywords."""
+        prompt_lower = prompt.lower()
+        if 'if' in prompt_lower and 'stock' in prompt_lower:
+            return '''
             {
-              "type": "summarize",
-              "tool": "gpt",
-              "config": {
-                "max_length": 100
-              }
-            },
-            {
-              "type": "send_whatsapp",
-              "config": {
-                "to": "+1234567890",
-                "message": "Email Summary: {{summary}}"
-              }
+              "name": "Conditional Stock Alert",
+              "description": "If stock price is above a threshold, send an email.",
+              "trigger": { "type": "manual" },
+              "actions": [
+                {
+                  "type": "api_call",
+                  "config": { "url": "https://api.example.com/stock/AAPL" }
+                },
+                {
+                  "type": "send_email",
+                  "condition": "variables.get('api_result', {}).get('price', 0) > 200",
+                  "config": {
+                    "to": "user@example.com",
+                    "subject": "Stock Alert: AAPL",
+                    "message": "AAPL stock price is over $200!"
+                  }
+                }
+              ]
             }
-          ]
-        }
-        '''
+            '''
+        elif 'for each' in prompt_lower and 'article' in prompt_lower:
+            return '''
+            {
+              "name": "Summarize Scraped Articles",
+        elif 'api call' in prompt_lower and 'email' in prompt_lower:
+            return '''
+            {
+              "name": "API to Email",
+              "description": "Call an API and email the result.",
+              "trigger": { "type": "manual" },
+              "actions": [
+                {
+                  "type": "api_call",
+                  "config": { "url": "https://api.example.com/data" }
+                },
+                {
+                  "type": "send_email",
+                  "config": {
+                    "to": "user@example.com",
+                    "subject": "API Data",
+                    "message": "The data is: {{api_result}}"
+                  }
+                }
+              ]
+            }
+            '''
+              "description": "For each article scraped, summarize its content.",
+              "trigger": { "type": "manual" },
+              "actions": [
+                {
+                  "type": "web_scrape",
+                  "config": { "url": "https://example.com/articles" }
+                },
+                {
+                  "type": "summarize",
+                  "loop": "article in scraped_content",
+                  "config": {
+                    "input_text": "{{article}}"
+                  }
+                }
+              ]
+            }
+            '''
+        else:
+            return '''
+            {
+              "name": "Email to WhatsApp Alert",
+              "description": "Forward email summaries to WhatsApp",
+              "trigger": { "type": "email", "filter": "from:boss@example.com" },
+              "actions": [
+                {
+                  "type": "summarize",
+                  "config": { "max_length": 100 }
+                },
+                {
+                  "type": "send_whatsapp",
+                  "config": {
+                    "to": "+1234567890",
+                    "message": "Email Summary: {{summary}}"
+                  }
+                }
+              ]
+            }
+            '''
 
+
+from .plugin_manager import PluginManager
 
 class LLMInterface:
     """Main interface for LLM operations"""
     
-    def __init__(self, config):
+    def __init__(self, config, plugin_manager: PluginManager):
         self.config = config
+        self.plugin_manager = plugin_manager
         self.provider = self._create_provider()
         self.system_prompt = self._get_system_prompt()
     
@@ -149,6 +214,8 @@ JSON Schema:
   "actions": [
     {
       "type": "action_type",
+    "condition": "Optional: A Python expression string that must evaluate to True for the action to run. e.g. 'variables.get(\"price\", 0) > 100'",
+    "loop": "Optional: A Python 'for' loop expression over a list in 'variables'. e.g., 'item in scraped_content'",
       "tool": "library_or_service",
       "config": {
         "parameter": "value"
@@ -157,66 +224,105 @@ JSON Schema:
   ]
 }
 
-Available action types:
-- summarize: Summarize text using AI
-- send_email: Send email via SMTP
-- send_whatsapp: Send WhatsApp message
-- send_sms: Send SMS via Twilio
-- read_email: Read emails via IMAP
-- web_scrape: Scrape web content
-- file_process: Process files
-- api_call: Make HTTP API calls
-- schedule_task: Schedule recurring tasks
-- database_query: Query databases
-- spreadsheet_update: Update Google Sheets/Excel
+You can use the output of one action as the input for another.
+For example, the `api_call` action saves its result to a variable named `api_result`.
+You can use this in a subsequent action's config, like `message: 'The result is {{api_result.some_key}}'`.
 
-Tools/Libraries available:
-- gpt: For AI text processing
-- smtp: For sending emails
-- imap: For reading emails
-- requests: For HTTP requests
-- twilio: For SMS/WhatsApp
-- gspread: For Google Sheets
-- sqlite3: For local database
-- schedule: For task scheduling
-- beautifulsoup: For web scraping
+Available actions and their outputs:
+{action_list}
 
 Return ONLY the JSON, no explanation or code blocks.
 """
+        action_list_parts = []
+        all_plugins = self.plugin_manager.get_all_plugins()
+        for name, plugin in all_plugins.items():
+            part = f"- `{name}`"
+            if plugin.output_variable_name:
+                part += f" (saves output to `{plugin.output_variable_name}`)"
+            action_list_parts.append(part)
+
+        action_list = "\n".join(action_list_parts)
+        base_prompt = """
+You are a Python automation expert. Your job is to take natural language task descriptions and:
+1. Output ONLY a structured JSON describing the workflow
+2. The JSON should be ready to convert into Python code
+
+JSON Schema:
+{
+  "name": "Short descriptive name",
+  "description": "Brief description of what this workflow does",
+  "trigger": {
+    "type": "email|schedule|file|webhook|manual",
+    "filter": "Optional filter criteria",
+    "schedule": "Optional cron expression for scheduled tasks"
+  },
+  "actions": [
+    {
+      "type": "action_type",
+    "condition": "Optional: A Python expression string that must evaluate to True for the action to run. e.g. 'variables.get(\"price\", 0) > 100'",
+    "loop": "Optional: A Python 'for' loop expression over a list in 'variables'. e.g., 'item in scraped_content'",
+      "tool": "library_or_service",
+      "config": {
+        "parameter": "value"
+      }
+    }
+  ]
+}
+
+You can use the output of one action as the input for another.
+For example, the `api_call` action saves its result to a variable named `api_result`.
+You can use this in a subsequent action's config, like `message: 'The result is {{api_result.some_key}}'`.
+
+Available actions and their outputs:
+{action_list}
+
+Return ONLY the JSON, no explanation or code blocks.
+"""
+        return base_prompt.format(action_list=action_list)
     
     def generate_workflow(self, description: str) -> Dict[str, Any]:
-        """Generate workflow JSON from natural language description"""
+        """Generate workflow JSON from natural language, with retries."""
         prompt = f"""
 Create a workflow for this task: "{description}"
 
 Return only the JSON workflow structure.
 """
-        
-        response = self.provider.generate(prompt, self.system_prompt)
-        
-        # Extract JSON from response
-        try:
-            # Try to find JSON in the response
-            json_match = re.search(r'\{.*\}', response, re.DOTALL)
-            if json_match:
-                json_str = json_match.group(0)
+        last_error = None
+        for attempt in range(2): # Try up to 2 times
+            if last_error:
+                print(f"🔄 Retrying LLM generation (Attempt {attempt + 1})...")
+                prompt = f"""
+The previous attempt failed. Please fix the JSON output.
+Error: {last_error}
+Original Task: "{description}"
+Return only the corrected JSON workflow structure.
+"""
+
+            response = self.provider.generate(prompt, self.system_prompt)
+
+            try:
+                # Extract JSON from response
+                json_match = re.search(r'```json\s*(\{.*?\})\s*```', response, re.DOTALL)
+                if json_match:
+                    json_str = json_match.group(1)
+                else:
+                    json_match = re.search(r'\{.*\}', response, re.DOTALL)
+                    if json_match:
+                        json_str = json_match.group(0)
+                    else:
+                        json_str = response # Try to parse the whole thing
+
                 return json.loads(json_str)
-            else:
-                return json.loads(response)
-        except json.JSONDecodeError:
-            # Fallback to a basic structure
-            return {
-                "name": "Generated Workflow",
-                "description": description,
-                "trigger": {"type": "manual"},
-                "actions": [
-                    {
-                        "type": "api_call",
-                        "tool": "requests",
-                        "config": {
-                            "url": "https://httpbin.org/get",
-                            "method": "GET"
-                        }
-                    }
-                ]
-            }
+
+            except json.JSONDecodeError as e:
+                last_error = f"JSONDecodeError: {e}"
+                continue
+
+        # If all attempts fail, return a fallback structure
+        print("❌ LLM generation failed after multiple attempts.")
+        return {
+            "name": "Fallback Workflow",
+            "description": f"Could not generate workflow for: {description}",
+            "trigger": {"type": "manual"},
+            "actions": [{"type": "api_call", "config": {"url": "https://httpbin.org/get"}}]
+        }

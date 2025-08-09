@@ -15,6 +15,8 @@ class FileProcessPlugin(ActionPlugin):
     def name(self) -> str:
         return "file_process"
 
+    output_variable_name = "file_content"
+
     def get_function_definition(self) -> str:
         return '''
 def process_file(filepath, operation="read", content_to_write=""):
@@ -24,8 +26,6 @@ def process_file(filepath, operation="read", content_to_write=""):
             with open(filepath, 'r') as f:
                 content = f.read()
             print(f"📄 Read file: {filepath}")
-            if content:
-                variables['file_content'] = content
             return content
         elif operation == "write":
             with open(filepath, 'w') as f:
@@ -42,4 +42,8 @@ def process_file(filepath, operation="read", content_to_write=""):
         operation = repr(config.get('operation', 'read'))
         content = repr(config.get('content', ''))
 
-        return f"process_file(filepath={filepath}, operation={operation}, content_to_write={content})"
+        call_str = f"process_file(filepath={filepath}, operation={operation}, content_to_write={content})"
+
+        if self.output_variable_name and operation == "'read'":
+            return f"variables['{self.output_variable_name}'] = {call_str}"
+        return call_str

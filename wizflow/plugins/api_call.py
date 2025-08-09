@@ -15,6 +15,8 @@ class ApiCallPlugin(ActionPlugin):
     def name(self) -> str:
         return "api_call"
 
+    output_variable_name = "api_result"
+
     @property
     def required_imports(self) -> List[str]:
         return ["import requests"]
@@ -27,11 +29,7 @@ def make_api_call(url, method="GET", headers=None, data=None):
         response = requests.request(method, url, headers=headers, json=data)
         response.raise_for_status()
         print(f"🌐 API call to {url} successful")
-        # Store result in variables for chaining
-        api_result = response.json() if response.content else None
-        if api_result:
-            variables['api_result'] = api_result
-        return api_result
+        return response.json() if response.content else None
     except Exception as e:
         print(f"❌ API call failed: {e}")
         return None

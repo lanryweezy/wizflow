@@ -11,6 +11,13 @@ from typing import Dict, Optional, Type
 from wizflow.plugins.base import ActionPlugin
 
 
+PLUGIN_REPOSITORY = {
+    "wizflow-plugin-youtube": "https://github.com/example/wizflow-plugin-youtube.git",
+    "wizflow-plugin-spotify": "https://github.com/example/wizflow-plugin-spotify.git",
+    "wizflow-plugin-calendar": "https://github.com/example/wizflow-plugin-calendar.git",
+}
+
+
 class PluginManager:
     """
     Manages the discovery and loading of action plugins.

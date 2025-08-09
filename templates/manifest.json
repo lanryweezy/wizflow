@@ -1,0 +1,12 @@
+{
+  "templates": [
+    {
+      "name": "daily-stock-alert",
+      "description": "Sends a daily email with the price of a chosen stock."
+    },
+    {
+      "name": "website-change-monitor",
+      "description": "Monitors a website for changes and sends a notification."
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "name": "Daily Stock Alert",
+  "description": "Sends a daily email with the price of a chosen stock.",
+  "trigger": {
+    "type": "schedule",
+    "schedule": "0 9 * * *"
+  },
+  "actions": [
+    {
+      "type": "api_call",
+      "config": {
+        "url": "https://api.example.com/stock/AAPL"
+      }
+    },
+    {
+      "type": "send_email",
+      "condition": "variables.get('api_result', {}).get('price')",
+      "config": {
+        "to": "user@example.com",
+        "subject": "Daily Stock Price for AAPL",
+        "message": "The current price of AAPL is {{api_result.price}}"
+      }
+    }
+  ]
+}

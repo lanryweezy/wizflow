@@ -16,6 +16,10 @@ requirements = []
 if requirements_path.exists():
     requirements = requirements_path.read_text().splitlines()
 
+# Add prompt_toolkit for the TUI
+requirements.append("prompt_toolkit>=3.0")
+requirements.append("jsonschema>=3.0")
+
 setup(
     name="wizflow",
     version="1.0.0",

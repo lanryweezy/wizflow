@@ -3,7 +3,16 @@ Base class for all action plugins in WizFlow.
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
+
+
+class LoopVariable:
+    """A wrapper class to indicate a variable is from a loop."""
+    def __init__(self, name: str):
+        self.name = name
+
+    def __str__(self):
+        return self.name
 
 
 class ActionPlugin(ABC):
@@ -33,7 +42,8 @@ class ActionPlugin(ABC):
         """
         return []
 
-    @abstractmethod
+    output_variable_name: Optional[str] = None
+
     def get_function_definition(self) -> str:
         """
         Returns the full Python code for the function that implements this action.
