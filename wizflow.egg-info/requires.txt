@@ -7,3 +7,4 @@ twilio>=8.0.0
 gspread>=5.0.0
 watchdog>=2.1.6
 croniter>=1.0.15
+keyring>=23.0.0

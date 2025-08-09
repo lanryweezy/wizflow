@@ -1,85 +1,104 @@
 """
-Secure Credential Management for WizFlow
+Secure Credential Management for WizFlow using the system's keyring.
 """
 
-import json
-import os
-from pathlib import Path
-from typing import Dict, Optional
+import keyring
+from keyring.errors import PasswordDeleteError, NoKeyringError
+from typing import Optional
+
+from ..logger import get_logger
+
+WIZFLOW_SERVICE_PREFIX = "wizflow"
 
 
 class CredentialManager:
     """
-    Manages storing and retrieving user credentials securely.
+    Manages storing and retrieving user credentials securely using the system's keyring.
     """
+
     def __init__(self):
-        self.config_dir = Path.home() / ".wizflow"
-        self.credentials_path = self.config_dir / "credentials.json"
-        self._ensure_directory()
+        self.logger = get_logger(__name__)
+        try:
+            # Check if a keyring backend is available
+            keyring.get_keyring()
+        except NoKeyringError:
+            self.logger.error("FATAL: No keyring backend found! Cannot store credentials securely.")
+            self.logger.error("Please install a backend like 'keyrings.cryptfile' (`pip install keyrings.cryptfile`) or 'secretstorage'.")
+            raise
 
-    def _ensure_directory(self):
-        """Ensure the configuration directory exists."""
-        self.config_dir.mkdir(parents=True, exist_ok=True)
+    def _get_service_name(self, service: str) -> str:
+        """Constructs the full service name with a prefix for keyring."""
+        return f"{WIZFLOW_SERVICE_PREFIX}-{service}"
 
-    def load_credentials(self) -> Dict[str, str]:
+    def save_credential(self, service: str, username: str, password: str) -> bool:
         """
-        Loads credentials from the JSON file.
+        Saves a credential to the system's keyring.
+
+        Args:
+            service: The name of the service (e.g., 'openai').
+            username: The username or key name associated with the service (e.g., 'api_key').
+            password: The secret to store.
 
         Returns:
-            A dictionary of credentials.
+            True if successful, False otherwise.
         """
-        if not self.credentials_path.exists():
-            return {}
+        service_name = self._get_service_name(service)
+        try:
+            keyring.set_password(service_name, username, password)
+            self.logger.info(f"✅ Credential for service '{service}' and username '{username}' saved successfully.")
+            return True
+        except Exception as e:
+            self.logger.error(f"❌ Failed to save credential for '{service}': {e}")
+            return False
 
-        # Check permissions before loading
-        if self.credentials_path.stat().st_mode & 0o077:
-            print(f"⚠️  Warning: Credentials file {self.credentials_path} has insecure permissions. "
-                  "It should only be readable by the current user. "
-                  "Please run `chmod 600 {self.credentials_path}`.")
-
-        with open(self.credentials_path, 'r') as f:
-            try:
-                return json.load(f)
-            except json.JSONDecodeError:
-                print(f"⚠️  Warning: Could not parse credentials file at {self.credentials_path}. "
-                      "Starting with empty credentials.")
-                return {}
-
-    def save_credentials(self, credentials: Dict[str, str]):
+    def get_credential(self, service: str, username: str) -> Optional[str]:
         """
-        Saves credentials to the JSON file with secure permissions.
+        Retrieves a credential from the system's keyring.
 
         Args:
-            credentials: A dictionary of credentials to save.
-        """
-        with open(self.credentials_path, 'w') as f:
-            json.dump(credentials, f, indent=2)
-
-        # Set file permissions to be readable/writable only by the user
-        os.chmod(self.credentials_path, 0o600)
-        print(f"🔒 Credentials saved to {self.credentials_path}")
-
-    def get_credential(self, key: str) -> Optional[str]:
-        """
-        Retrieves a single credential by key.
-
-        Args:
-            key: The key of the credential to retrieve.
+            service: The name of the service.
+            username: The username or key name.
 
         Returns:
-            The credential value, or None if not found.
+            The credential, or None if not found.
         """
-        credentials = self.load_credentials()
-        return credentials.get(key)
+        service_name = self._get_service_name(service)
+        try:
+            return keyring.get_password(service_name, username)
+        except Exception as e:
+            self.logger.error(f"❌ Failed to retrieve credential for '{service}': {e}")
+            return None
 
-    def set_credential(self, key: str, value: str):
+    def delete_credential(self, service: str, username:str) -> bool:
         """
-        Sets a single credential and saves the file.
+        Deletes a credential from the system's keyring.
 
         Args:
-            key: The key of the credential to set.
-            value: The value of the credential.
+            service: The name of the service.
+            username: The username or key name.
+
+        Returns:
+            True if successful, False otherwise.
         """
-        credentials = self.load_credentials()
-        credentials[key] = value
-        self.save_credentials(credentials)
+        service_name = self._get_service_name(service)
+        try:
+            keyring.delete_password(service_name, username)
+            self.logger.info(f"✅ Credential for service '{service}' and username '{username}' deleted successfully.")
+            return True
+        except PasswordDeleteError:
+            self.logger.warning(f"🤷 No credential found for service '{service}' and username '{username}' to delete.")
+            return False
+        except Exception as e:
+            self.logger.error(f"❌ Failed to delete credential for '{service}': {e}")
+            return False
+
+    def load_credentials(self) -> dict:
+        """
+        DEPRECATED: This method is no longer supported with the keyring implementation
+        as we cannot list all stored credentials.
+        Workflows should fetch credentials individually as needed.
+
+        Returns an empty dictionary for backward compatibility.
+        """
+        self.logger.warning("DEPRECATION WARNING: load_credentials() is deprecated and will be removed.")
+        return {}

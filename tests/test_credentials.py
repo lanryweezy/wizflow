@@ -1,59 +1,86 @@
 import pytest
-import json
-from pathlib import Path
+from unittest.mock import patch, MagicMock
 
-from wizflow.core.credentials import CredentialManager
+from wizflow.core.credentials import CredentialManager, WIZFLOW_SERVICE_PREFIX
 
-@pytest.fixture
-def temp_home(tmp_path):
-    """Create a temporary home directory for testing."""
-    return tmp_path
 
 @pytest.fixture
-def cred_manager(monkeypatch, temp_home):
-    """Fixture to create a CredentialManager instance with a mocked home directory."""
-    monkeypatch.setattr(Path, 'home', lambda: temp_home)
-    return CredentialManager()
+def mock_keyring():
+    """Fixture to mock the keyring library."""
+    with patch('wizflow.core.credentials.keyring') as mock_keyring_lib:
+        # Mock the get_keyring() check in __init__ to not raise an error
+        mock_keyring_lib.get_keyring.return_value = MagicMock()
+        yield mock_keyring_lib
 
-def test_save_and_load_credentials(cred_manager):
-    """Test saving and loading credentials."""
-    creds_to_save = {"test_key": "test_value"}
-    cred_manager.save_credentials(creds_to_save)
 
-    # Check if file exists
-    assert cred_manager.credentials_path.exists()
+def test_save_credential_success(mock_keyring):
+    """Test successfully saving a credential."""
+    manager = CredentialManager()
+    result = manager.save_credential("test_service", "test_user", "test_pass")
 
-    # Check permissions (on Unix-like systems)
-    import os
-    if os.name != 'nt':
-        assert cred_manager.credentials_path.stat().st_mode & 0o777 == 0o600
+    expected_service_name = f"{WIZFLOW_SERVICE_PREFIX}-test_service"
+    mock_keyring.set_password.assert_called_once_with(expected_service_name, "test_user", "test_pass")
+    assert result is True
 
-    # Check content
-    loaded_creds = cred_manager.load_credentials()
-    assert loaded_creds == creds_to_save
 
-def test_set_and_get_credential(cred_manager):
-    """Test setting and getting a single credential."""
-    cred_manager.set_credential("my_api_key", "12345")
+def test_save_credential_failure(mock_keyring):
+    """Test failure while saving a credential."""
+    mock_keyring.set_password.side_effect = Exception("Storage error")
+    manager = CredentialManager()
+    result = manager.save_credential("test_service", "test_user", "test_pass")
 
-    retrieved_key = cred_manager.get_credential("my_api_key")
-    assert retrieved_key == "12345"
+    assert result is False
 
-    # Check another key that doesn't exist
-    assert cred_manager.get_credential("non_existent_key") is None
 
-def test_load_non_existent_credentials(cred_manager):
-    """Test that loading non-existent credentials returns an empty dict."""
-    assert cred_manager.load_credentials() == {}
+def test_get_credential_success(mock_keyring):
+    """Test successfully retrieving a credential."""
+    expected_password = "super_secret_password"
+    expected_service_name = f"{WIZFLOW_SERVICE_PREFIX}-test_service"
+    mock_keyring.get_password.return_value = expected_password
 
-def test_load_corrupted_credentials(cred_manager, capsys):
-    """Test loading a corrupted credentials file."""
-    # Create a corrupted file
-    cred_manager.credentials_path.write_text("this is not json")
+    manager = CredentialManager()
+    password = manager.get_credential("test_service", "test_user")
 
-    loaded_creds = cred_manager.load_credentials()
-    assert loaded_creds == {}
+    mock_keyring.get_password.assert_called_once_with(expected_service_name, "test_user")
+    assert password == expected_password
 
-    # Check for warning message
-    captured = capsys.readouterr()
-    assert "Warning: Could not parse credentials file" in captured.out
+
+def test_get_credential_not_found(mock_keyring):
+    """Test retrieving a credential that does not exist."""
+    mock_keyring.get_password.return_value = None
+
+    manager = CredentialManager()
+    password = manager.get_credential("non_existent_service", "test_user")
+
+    assert password is None
+
+
+def test_delete_credential_success(mock_keyring):
+    """Test successfully deleting a credential."""
+    manager = CredentialManager()
+    result = manager.delete_credential("test_service", "test_user")
+
+    expected_service_name = f"{WIZFLOW_SERVICE_PREFIX}-test_service"
+    mock_keyring.delete_password.assert_called_once_with(expected_service_name, "test_user")
+    assert result is True
+
+
+def test_delete_credential_failure(mock_keyring):
+    """Test failure while deleting a credential."""
+    from keyring.errors import PasswordDeleteError
+    mock_keyring.delete_password.side_effect = PasswordDeleteError("Not found")
+
+    manager = CredentialManager()
+    result = manager.delete_credential("test_service", "test_user")
+
+    assert result is False
+
+def test_load_credentials_is_deprecated(caplog):
+    """Test that the load_credentials method logs a deprecation warning."""
+    # We need to patch keyring here as well to instantiate the manager
+    with patch('wizflow.core.credentials.keyring'):
+        manager = CredentialManager()
+        result = manager.load_credentials()
+
+        assert result == {}
+        assert "DEPRECATION WARNING" in caplog.text

@@ -29,6 +29,7 @@ Requires-Dist: twilio>=8.0.0
 Requires-Dist: gspread>=5.0.0
 Requires-Dist: watchdog>=2.1.6
 Requires-Dist: croniter>=1.0.15
+Requires-Dist: keyring>=23.0.0
 Dynamic: author
 Dynamic: classifier
 Dynamic: description

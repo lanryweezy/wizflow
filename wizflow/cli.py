@@ -7,6 +7,7 @@ import argparse
 import sys
 import os
 import json
+import getpass
 from pathlib import Path
 from typing import Optional
 
@@ -235,12 +236,23 @@ Examples:
     config_parser.add_argument("value", help="Configuration value")
 
     # Credentials command
-    credentials_parser = subparsers.add_parser("credentials", help="Manage credentials")
-    cred_subparsers = credentials_parser.add_subparsers(dest="action", required=True)
+    credentials_parser = subparsers.add_parser("credentials", help="Manage credentials securely")
+    cred_subparsers = credentials_parser.add_subparsers(dest="cred_action", help="Credential actions", required=True)
     
-    cred_set_parser = cred_subparsers.add_parser("set", help="Set a credential")
-    cred_set_parser.add_argument("key", help="Credential key")
-    cred_set_parser.add_argument("value", help="Credential value")
+    # credentials add
+    cred_add_parser = cred_subparsers.add_parser("add", help="Add a new credential")
+    cred_add_parser.add_argument("service", help="The service name (e.g., openai)")
+    cred_add_parser.add_argument("username", help="The username or key name for the service (e.g., api_key)")
+
+    # credentials get
+    cred_get_parser = cred_subparsers.add_parser("get", help="Get a stored credential's value")
+    cred_get_parser.add_argument("service", help="The service name")
+    cred_get_parser.add_argument("username", help="The username or key name")
+
+    # credentials delete
+    cred_delete_parser = cred_subparsers.add_parser("delete", help="Delete a stored credential")
+    cred_delete_parser.add_argument("service", help="The service name")
+    cred_delete_parser.add_argument("username", help="The username or key name")
 
     args = parser.parse_args()
     
@@ -274,9 +286,27 @@ Examples:
             logger.info(f"✅ Set {args.key} configuration")
 
         elif args.command == "credentials":
-            if args.action == "set":
-                cli.credentials.set_credential(args.key, args.value)
-                logger.info(f"✅ Credential '{args.key}' set.")
+            if args.cred_action == "add":
+                password = getpass.getpass(f"Enter password for '{args.username}' on service '{args.service}': ")
+                cli.credentials.save_credential(args.service, args.username, password)
+
+            elif args.cred_action == "get":
+                password = cli.credentials.get_credential(args.service, args.username)
+                if password:
+                    logger.info(f"🔑 Credential for '{args.username}' on service '{args.service}' found.")
+                    # For security, we don't display the password.
+                    # We could show the first few chars or just confirm existence.
+                    print("Value exists (hidden for security).")
+                else:
+                    logger.warning(f"🤷 No credential found for '{args.username}' on service '{args.service}'.")
+
+            elif args.cred_action == "delete":
+                # Ask for confirmation before deleting
+                confirm = input(f"Are you sure you want to delete the credential for '{args.username}' on service '{args.service}'? (y/N): ").strip().lower()
+                if confirm in ['y', 'yes']:
+                    cli.credentials.delete_credential(args.service, args.username)
+                else:
+                    logger.info("Deletion cancelled.")
 
     except KeyboardInterrupt:
         logger.info("\n👋 Goodbye!")
