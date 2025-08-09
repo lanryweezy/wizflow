@@ -6,7 +6,7 @@ from wizflow.plugins.base import ActionPlugin
 def test_plugin_manager_discovery():
     """Test that the PluginManager discovers all plugins."""
     manager = PluginManager()
-    all_plugins = manager.get_all_plugins()
+    all_plugins = manager.get_all_action_plugins()
 
     # List of expected plugin names
     expected_plugins = [
@@ -29,11 +29,11 @@ def test_get_plugin():
     manager = PluginManager()
 
     # Test getting a known plugin
-    plugin = manager.get_plugin("send_email")
+    plugin = manager.get_action_plugin("send_email")
     assert plugin is not None
     assert plugin.name == "send_email"
     assert isinstance(plugin, ActionPlugin)
 
     # Test getting a non-existent plugin
-    plugin = manager.get_plugin("non_existent_plugin")
+    plugin = manager.get_action_plugin("non_existent_plugin")
     assert plugin is None

@@ -9,7 +9,7 @@ def builder():
     with patch('wizflow.interactive_builder.PluginManager'):
         builder = InteractiveWorkflowBuilder()
         # Mock the plugins for predictable test results
-        builder.plugin_manager.get_all_plugins.return_value = {
+        builder.plugin_manager.get_all_action_plugins.return_value = {
             'send_email': MagicMock(),
             'log_message': MagicMock()
         }
@@ -20,7 +20,7 @@ def test_build_full_workflow(mock_input, builder):
     """Test building a full workflow interactively."""
     # Mock the return values of plugin names
     plugin_names = ['send_email', 'log_message']
-    builder.plugin_manager.get_all_plugins.return_value = {name: MagicMock(name=name) for name in plugin_names}
+    builder.plugin_manager.get_all_action_plugins.return_value = {name: MagicMock(name=name) for name in plugin_names}
 
     # Mock a sequence of user inputs
     mock_input.side_effect = [
@@ -57,7 +57,7 @@ def test_build_with_invalid_choices(mock_input, builder):
     """Test the builder's resilience to invalid user input."""
     # Mock the return values of plugin names
     plugin_names = ['send_email', 'log_message']
-    builder.plugin_manager.get_all_plugins.return_value = {name: MagicMock(name=name) for name in plugin_names}
+    builder.plugin_manager.get_all_action_plugins.return_value = {name: MagicMock(name=name) for name in plugin_names}
 
     mock_input.side_effect = [
         "Test Name",

@@ -29,10 +29,10 @@ class CodeGenerator:
 
         code = self._get_base_template(allowed_modules)
         code += self._generate_metadata_section(workflow)
-        code += self._generate_imports(required_plugins)
+        code += self._generate_imports(workflow, required_plugins)
         code += self._generate_action_definitions(required_plugins)
         code += self._generate_main_function(workflow, required_plugins)
-        code += self._generate_main_execution()
+        code += self._generate_main_execution(workflow)
 
         return code
 
@@ -41,7 +41,7 @@ class CodeGenerator:
         plugins = set()
         for action in workflow.get('actions', []):
             action_type = action.get('type')
-            plugin = self.plugin_manager.get_plugin(action_type)
+            plugin = self.plugin_manager.get_action_plugin(action_type)
             if plugin:
                 plugins.add(plugin)
             else:
@@ -142,11 +142,17 @@ __builtins__['__import__'] = _secure_import
 WORKFLOW_INFO = {metadata}
 '''
 
-    def _generate_imports(self, plugins: Set[ActionPlugin]) -> str:
+    def _generate_imports(self, workflow: Dict[str, Any], plugins: Set[ActionPlugin]) -> str:
         """Generate necessary imports based on required plugins."""
         imports = set()
         for plugin in plugins:
             imports.update(plugin.required_imports)
+
+        trigger_type = workflow.get("trigger", {}).get("type")
+        if trigger_type == 'file':
+            imports.add("import time")
+            imports.add("from watchdog.observers import Observer")
+            imports.add("from watchdog.events import FileSystemEventHandler")
 
         if not imports:
             return ""
@@ -211,7 +217,7 @@ def run_workflow():
             code += f"\n        # Action {i}: {action_type}\n"
             code += f"        logger.info(f\"▶️  Executing action {i}: {action_type}\")\n"
 
-            plugin = self.plugin_manager.get_plugin(action_type)
+            plugin = self.plugin_manager.get_action_plugin(action_type)
             if plugin:
                 call_code = plugin.get_function_call(action.get('config', {}))
                 # Indent the action call code properly
@@ -222,10 +228,42 @@ def run_workflow():
         
         return code
 
-    def _generate_main_execution(self) -> str:
+    def _generate_main_execution(self, workflow: Dict[str, Any]) -> str:
         """Generate main execution block"""
-        return '''
+        trigger_type = workflow.get("trigger", {}).get("type", "manual")
+
+        if trigger_type == "manual":
+            return '''
 if __name__ == "__main__":
     success = run_workflow()
     sys.exit(0 if success else 1)
+'''
+        elif trigger_type == "file":
+            path = workflow.get("trigger", {}).get("path", ".")
+            return f'''
+class FileTriggerHandler(FileSystemEventHandler):
+    def on_created(self, event):
+        if not event.is_directory:
+            logger.info(f"New file created: {{event.src_path}}")
+            run_workflow()
+
+if __name__ == "__main__":
+    path = "{path}"
+    logger.info(f"Watching for new files in {{path}}...")
+    event_handler = FileTriggerHandler()
+    observer = Observer()
+    observer.schedule(event_handler, path, recursive=True)
+    observer.start()
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        observer.stop()
+    observer.join()
+'''
+        else:
+            return f'''
+if __name__ == "__main__":
+    logger.error("Unknown trigger type: {trigger_type}")
+    sys.exit(1)
 '''

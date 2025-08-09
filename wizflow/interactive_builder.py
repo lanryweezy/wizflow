@@ -77,7 +77,7 @@ class InteractiveWorkflowBuilder:
     def _get_actions(self):
         """Guides the user through adding and configuring actions."""
         self.logger.info("\n--- Action Setup ---")
-        available_plugins = self.plugin_manager.get_all_plugins()
+        available_plugins = self.plugin_manager.get_all_action_plugins()
         plugin_names = list(available_plugins.keys())
 
         # TODO: The parameter and package requirement discovery should be improved in the plugin design.
