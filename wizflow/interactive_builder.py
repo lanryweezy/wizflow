@@ -64,6 +64,13 @@ class InteractiveWorkflowBuilder:
                 elif trigger_type == 'email':
                     email_filter = input("▶️  Enter a filter for incoming emails (e.g., 'from:boss@example.com'): ")
                     self.workflow['trigger']['filter'] = email_filter
+                elif trigger_type == 'webhook':
+                    host = input("▶️  Enter the host for the webhook server (default: localhost): ") or "localhost"
+                    port = input("▶️  Enter the port for the webhook server (default: 8080): ") or "8080"
+                    path = input("▶️  Enter the path for the webhook (default: /): ") or "/"
+                    self.workflow['trigger']['host'] = host
+                    self.workflow['trigger']['port'] = int(port)
+                    self.workflow['trigger']['path'] = path
 
                 self.logger.info(f"✅ Trigger configured: {trigger_type}")
             else:

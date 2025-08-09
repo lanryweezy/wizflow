@@ -156,6 +156,8 @@ WORKFLOW_INFO = {metadata}
         elif trigger_type == 'schedule':
             imports.add("import time")
             imports.add("from croniter import croniter")
+        elif trigger_type == 'webhook':
+            imports.add("from http.server import BaseHTTPRequestHandler, HTTPServer")
 
         if not imports:
             return ""
@@ -286,6 +288,39 @@ if __name__ == "__main__":
         except Exception as e:
             logger.error(f"Error in scheduler: {{e}}")
             time.sleep(60)
+'''
+        elif trigger_type == "webhook":
+            host = workflow.get("trigger", {}).get("host", "localhost")
+            port = int(workflow.get("trigger", {}).get("port", 8080))
+            path = workflow.get("trigger", {}).get("path", "/")
+            return f'''
+class WebhookHandler(BaseHTTPRequestHandler):
+    def do_POST(s):
+        if s.path == "{path}":
+            content_length = int(s.headers['Content-Length'])
+            post_data = s.rfile.read(content_length)
+
+            s.send_response(200)
+            s.end_headers()
+            s.wfile.write(b'OK')
+
+            try:
+                data = json.loads(post_data)
+            except json.JSONDecodeError:
+                data = {{"raw": post_data.decode('utf-8')}}
+
+            # We are not passing the data to the workflow yet.
+            # This can be an improvement for later.
+            run_workflow()
+        else:
+            s.send_error(404, "Not Found")
+
+if __name__ == "__main__":
+    host = "{host}"
+    port = {port}
+    logger.info(f"Starting webhook server on http://{{host}}:{{port}}")
+    with HTTPServer((host, port), WebhookHandler) as httpd:
+        httpd.serve_forever()
 '''
         else:
             return f'''
