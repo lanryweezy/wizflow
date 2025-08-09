@@ -17,8 +17,8 @@ def test_required_imports(plugin):
 def test_get_function_definition(plugin):
     """Test the generated function definition."""
     definition = plugin.get_function_definition()
-    assert "def log_message(message, level=\"INFO\"):" in definition
-    assert 'print(f"[{level}] {message}")' in definition
+    assert "def log_message(message, level=\"INFO\", variables={}, creds={}):" in definition
+    assert 'logger.info(f"[{level}] {message}")' in definition
 
 def test_get_function_call(plugin):
     """Test the generated function call."""
@@ -27,10 +27,10 @@ def test_get_function_call(plugin):
         "level": "DEBUG"
     }
     call = plugin.get_function_call(config)
-    assert call == "log_message(message='Hello, World!', level='DEBUG')"
+    assert call == "log_message(message='Hello, World!', level='DEBUG', variables=variables, creds=credentials)"
 
 def test_get_function_call_with_defaults(plugin):
     """Test the generated function call with default values."""
     config = {}
     call = plugin.get_function_call(config)
-    assert call == "log_message(message='No message provided.', level='INFO')"
+    assert call == "log_message(message='No message provided.', level='INFO', variables=variables, creds=credentials)"

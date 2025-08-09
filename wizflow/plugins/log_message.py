@@ -17,12 +17,12 @@ class LogMessagePlugin(ActionPlugin):
 
     def get_function_definition(self) -> str:
         return '''
-def log_message(message, level="INFO"):
+def log_message(message, level="INFO", variables={}, creds={}):
     """Logs a message to the console."""
-    print(f"[{level}] {message}")
+    logger.info(f"[{level}] {message}")
 '''
 
     def get_function_call(self, config: Dict[str, Any]) -> str:
-        message = repr(config.get('message', 'No message provided.'))
-        level = repr(config.get('level', 'INFO'))
-        return f"log_message(message={message}, level={level})"
+        message = self._resolve_template(config.get('message', 'No message provided.'))
+        level = self._resolve_template(config.get('level', 'INFO'))
+        return f"log_message(message={message}, level={level}, variables=variables, creds=credentials)"

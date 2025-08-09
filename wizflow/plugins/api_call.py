@@ -21,32 +21,32 @@ class ApiCallPlugin(ActionPlugin):
 
     def get_function_definition(self) -> str:
         return '''
-def make_api_call(url, method="GET", headers=None, data=None):
+def make_api_call(url, method="GET", headers=None, data=None, variables={}, creds={}):
     """Make HTTP API call"""
     try:
         response = requests.request(method, url, headers=headers, json=data)
         response.raise_for_status()
-        print(f"🌐 API call to {url} successful")
-        # Store result in variables for chaining
+        logger.info(f"🌐 API call to {url} successful")
+
         api_result = response.json() if response.content else None
         if api_result:
-            variables['api_result'] = api_result
-        return api_result
+            return {"api_result": api_result}
+        return None
     except Exception as e:
-        print(f"❌ API call failed: {e}")
+        logger.error(f"❌ API call failed: {e}")
         return None
 '''
 
     def get_function_call(self, config: Dict[str, Any]) -> str:
-        url = repr(config.get('url', 'https://api.example.com'))
-        method = repr(config.get('method', 'GET'))
-        headers = config.get('headers')
-        data = config.get('data')
+        url = self._resolve_template(config.get('url', 'https://api.example.com'))
+        method = self._resolve_template(config.get('method', 'GET'))
+        headers = self._resolve_template(config.get('headers'))
+        data = self._resolve_template(config.get('data'))
 
         call_parts = [f"url={url}", f"method={method}"]
-        if headers:
+        if config.get('headers'):
             call_parts.append(f"headers={headers}")
-        if data:
+        if config.get('data'):
             call_parts.append(f"data={data}")
 
-        return f"make_api_call({', '.join(call_parts)})"
+        return f"make_api_call({', '.join(call_parts)}, variables=variables, creds=credentials)"

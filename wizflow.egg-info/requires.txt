@@ -5,3 +5,5 @@ beautifulsoup4>=4.9.0
 schedule>=1.1.0
 twilio>=8.0.0
 gspread>=5.0.0
+watchdog>=2.1.6
+croniter>=1.0.15

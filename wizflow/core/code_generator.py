@@ -179,7 +179,7 @@ WORKFLOW_INFO = {metadata}
         description = workflow.get('description', 'Auto-generated workflow')
 
         main_func_header = f'''
-def run_workflow():
+def run_workflow(trigger_data: Dict[str, Any] = None):
     """
     Main workflow function: {name}
     Description: {description}
@@ -188,7 +188,7 @@ def run_workflow():
     logger.info(f"📋 Description: {description}")
 
     # Initialize variables for data passing between actions
-    variables = {{}}
+    variables = trigger_data if trigger_data is not None else {{}}
 
     # Load credentials
     try:
@@ -225,9 +225,10 @@ def run_workflow():
             plugin = self.plugin_manager.get_action_plugin(action_type)
             if plugin:
                 call_code = plugin.get_function_call(action.get('config', {}))
-                # Indent the action call code properly
-                indented_lines = ['        ' + line for line in call_code.split('\n')]
-                code += '\n'.join(indented_lines) + '\n'
+                # The action call will return a dictionary of new variables
+                code += f"        new_variables = {call_code}\n"
+                code += "        if isinstance(new_variables, dict):\n"
+                code += "            variables.update(new_variables)\n"
             else:
                 code += f"        logger.warning(\"🤷‍♂️ Action '{action_type}' skipped (no plugin found).\")\n"
         
@@ -240,7 +241,7 @@ def run_workflow():
         if trigger_type == "manual":
             return '''
 if __name__ == "__main__":
-    success = run_workflow()
+    success = run_workflow(trigger_data=None)
     sys.exit(0 if success else 1)
 '''
         elif trigger_type == "file":
@@ -250,7 +251,8 @@ class FileTriggerHandler(FileSystemEventHandler):
     def on_created(self, event):
         if not event.is_directory:
             logger.info(f"New file created: {{event.src_path}}")
-            run_workflow()
+            trigger_data = {{"event_type": "created", "src_path": event.src_path}}
+            run_workflow(trigger_data=trigger_data)
 
 if __name__ == "__main__":
     path = "{path}"
@@ -283,7 +285,7 @@ if __name__ == "__main__":
             if sleep_seconds > 0:
                 time.sleep(sleep_seconds)
 
-            run_workflow()
+            run_workflow(trigger_data=None)
             base_time = datetime.now()
         except Exception as e:
             logger.error(f"Error in scheduler: {{e}}")
@@ -309,9 +311,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
             except json.JSONDecodeError:
                 data = {{"raw": post_data.decode('utf-8')}}
 
-            # We are not passing the data to the workflow yet.
-            # This can be an improvement for later.
-            run_workflow()
+            run_workflow(trigger_data={"data": data})
         else:
             s.send_error(404, "Not Found")
 

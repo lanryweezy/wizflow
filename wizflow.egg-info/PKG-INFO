@@ -27,6 +27,8 @@ Requires-Dist: beautifulsoup4>=4.9.0
 Requires-Dist: schedule>=1.1.0
 Requires-Dist: twilio>=8.0.0
 Requires-Dist: gspread>=5.0.0
+Requires-Dist: watchdog>=2.1.6
+Requires-Dist: croniter>=1.0.15
 Dynamic: author
 Dynamic: classifier
 Dynamic: description
@@ -288,8 +290,3 @@ wizflow "Send me weather forecast every morning at 7 AM"
 wizflow "When GitHub issue is created, create Jira ticket and notify team"
 wizflow "Monitor server health and send alerts if CPU usage exceeds 80%"
 ```
-
----
-
-**Made with ❤️ by MiniMax Agent**
-"# wizflow"

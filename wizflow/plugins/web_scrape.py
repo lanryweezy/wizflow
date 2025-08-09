@@ -21,7 +21,7 @@ class WebScrapePlugin(ActionPlugin):
 
     def get_function_definition(self) -> str:
         return '''
-def scrape_web(url, selector=None):
+def scrape_web(url, selector=None, variables={}, creds={}):
     """Scrape web content"""
     try:
         response = requests.get(url)
@@ -34,21 +34,21 @@ def scrape_web(url, selector=None):
         else:
             content = soup.get_text().strip()
 
-        print(f"🕷️  Scraped content from {url}")
+        logger.info(f"🕷️  Scraped content from {url}")
         if content:
-            variables['scraped_content'] = content
-        return content
+            return {"scraped_content": content}
+        return None
     except Exception as e:
-        print(f"❌ Web scraping failed: {e}")
+        logger.error(f"❌ Web scraping failed: {e}")
         return None
 '''
 
     def get_function_call(self, config: Dict[str, Any]) -> str:
-        url = repr(config.get('url', 'https://example.com'))
-        selector = config.get('selector')
+        url = self._resolve_template(config.get('url', 'https://example.com'))
+        selector = self._resolve_template(config.get('selector'))
 
         call_parts = [f"url={url}"]
-        if selector:
-            call_parts.append(f"selector={repr(selector)}")
+        if config.get('selector'):
+            call_parts.append(f"selector={selector}")
 
-        return f"scrape_web({', '.join(call_parts)})"
+        return f"scrape_web({', '.join(call_parts)}, variables=variables, creds=credentials)"

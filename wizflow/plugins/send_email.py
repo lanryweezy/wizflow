@@ -25,13 +25,13 @@ class SendEmailPlugin(ActionPlugin):
 
     def get_function_definition(self) -> str:
         return '''
-def send_email(to_email, subject, body, smtp_server="smtp.gmail.com", smtp_port=587, creds={}):
+def send_email(to_email, subject, body, smtp_server="smtp.gmail.com", smtp_port=587, variables={}, creds={}):
     """Send email via SMTP using stored credentials"""
     username = creds.get("smtp_user")
     password = creds.get("smtp_pass")
 
     if not username or not password:
-        print("❌ SMTP credentials (smtp_user, smtp_pass) not found. Cannot send email.")
+        logger.error("❌ SMTP credentials (smtp_user, smtp_pass) not found. Cannot send email.")
         return False
 
     try:
@@ -48,16 +48,16 @@ def send_email(to_email, subject, body, smtp_server="smtp.gmail.com", smtp_port=
         server.send_message(msg)
         server.quit()
 
-        print(f"📧 Email sent to {to_email}")
+        logger.info(f"📧 Email sent to {to_email}")
         return True
     except Exception as e:
-        print(f"❌ Failed to send email: {e}")
+        logger.error(f"❌ Failed to send email: {e}")
         return False
 '''
 
     def get_function_call(self, config: Dict[str, Any]) -> str:
-        to = repr(config.get('to', 'user@example.com'))
-        subject = repr(config.get('subject', 'Workflow Notification'))
-        message = repr(config.get('message', 'Workflow completed'))
+        to = self._resolve_template(config.get('to', 'user@example.com'))
+        subject = self._resolve_template(config.get('subject', 'Workflow Notification'))
+        message = self._resolve_template(config.get('message', 'Workflow completed'))
 
-        return f"send_email(to_email={to}, subject={subject}, body={message}, creds=credentials)"
+        return f"send_email(to_email={to}, subject={subject}, body={message}, variables=variables, creds=credentials)"

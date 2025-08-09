@@ -23,7 +23,7 @@ class SendWhatsappPlugin(ActionPlugin):
 
     def get_function_definition(self) -> str:
         return '''
-def send_whatsapp(to_number, message, creds={}):
+def send_whatsapp(to_number, message, variables={}, creds={}):
     """Send WhatsApp message using Twilio"""
     account_sid = creds.get("twilio_sid")
     auth_token = creds.get("twilio_token")
@@ -53,7 +53,7 @@ def send_whatsapp(to_number, message, creds={}):
 '''
 
     def get_function_call(self, config: Dict[str, Any]) -> str:
-        to = repr(config.get('to', '+1234567890'))
-        message = repr(config.get('message', 'Workflow message'))
+        to = self._resolve_template(config.get('to', '+1234567890'))
+        message = self._resolve_template(config.get('message', 'Workflow message'))
 
-        return f"send_whatsapp(to_number={to}, message={message}, creds=credentials)"
+        return f"send_whatsapp(to_number={to}, message={message}, variables=variables, creds=credentials)"
