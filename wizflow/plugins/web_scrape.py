@@ -39,7 +39,7 @@ def scrape_web(url, selector=None, variables={}, creds={}):
             return {"scraped_content": content}
         return None
     except Exception as e:
-        logger.error(f"❌ Web scraping failed: {e}")
+        logger.error(f"❌ Web scraping failed: {type(e).__name__}")
         return None
 '''
 

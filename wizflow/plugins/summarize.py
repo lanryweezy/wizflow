@@ -42,7 +42,7 @@ def summarize_text(text, max_length=100, variables={}, creds={}):
         logger.info(f"📝 Summary: {summary}")
         return {"summary": summary}
     except Exception as e:
-        logger.error(f"❌ AI summarization failed: {e}")
+        logger.error(f"❌ AI summarization failed: {type(e).__name__}")
         return None
 '''
 

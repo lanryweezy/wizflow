@@ -48,7 +48,7 @@ def send_whatsapp(to_number, message, variables={}, creds={}):
         logger.error("❌ Twilio library not installed. Please run: pip install twilio")
         return False
     except Exception as e:
-        logger.error(f"❌ Failed to send WhatsApp: {e}")
+        logger.error(f"❌ Failed to send WhatsApp: {type(e).__name__}")
         return False
 '''
 

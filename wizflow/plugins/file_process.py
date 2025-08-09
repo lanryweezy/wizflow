@@ -33,7 +33,7 @@ def process_file(filepath, operation="read", content_to_write="", variables={}, 
             logger.info(f"✍️  Wrote to file: {filepath}")
             return None
     except Exception as e:
-        logger.error(f"❌ File operation failed: {e}")
+        logger.error(f"❌ File operation failed: {type(e).__name__}")
         return None
 '''
 

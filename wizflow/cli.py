@@ -121,7 +121,7 @@ class WizFlowCLI:
         if not py_path.exists() or not json_path.exists():
             self.logger.error(f"❌ Workflow '{workflow_name}' not found.")
             self.logger.info("Run 'wizflow list' to see available workflows.")
-            return
+            sys.exit(1)
         
         self.logger.info(f"🚀 Running {workflow_name}...")
 
@@ -165,7 +165,7 @@ class WizFlowCLI:
         
         if not json_path.exists():
             self.logger.error(f"❌ Workflow '{workflow_name}' not found")
-            return
+            sys.exit(1)
         
         # Copy to current directory
         import shutil
@@ -312,7 +312,8 @@ Examples:
         logger.info("\n👋 Goodbye!")
         sys.exit(0)
     except Exception as e:
-        logger.error(f"❌ Error: {e}")
+        logger.error(f"❌ An unexpected error occurred: {type(e).__name__}")
+        logger.debug(e, exc_info=True) # Full error and traceback logged in verbose mode
         sys.exit(1)
 
 

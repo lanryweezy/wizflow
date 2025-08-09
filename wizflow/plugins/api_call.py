@@ -33,7 +33,7 @@ def make_api_call(url, method="GET", headers=None, data=None, variables={}, cred
             return {"api_result": api_result}
         return None
     except Exception as e:
-        logger.error(f"❌ API call failed: {e}")
+        logger.error(f"❌ API call failed: {type(e).__name__}")
         return None
 '''
 

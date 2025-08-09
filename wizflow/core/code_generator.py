@@ -222,7 +222,8 @@ def run_workflow(trigger_data: Dict[str, Any] = None):
         return True
         
     except Exception as e:
-        logger.error(f"❌ Workflow failed: {e}")
+        logger.error(f"❌ Workflow failed with error: {type(e).__name__}")
+        logger.debug(f"Full error: {e}", exc_info=True) # Log full error only in debug
         return False
 '''
         return main_func_header + action_calls_code + main_func_footer
@@ -261,7 +262,7 @@ def run_workflow(trigger_data: Dict[str, Any] = None):
                 code += f"                action_success = True\n"
                 code += f"                break\n"
                 code += f"            except Exception as e:\n"
-                code += f"                logger.warning(f\"⚠️  Attempt {{attempt + 1}}/{retry_count} for action '{action_type}' failed: {{e}}\")\n"
+                code += f"                logger.warning(f\"⚠️  Attempt {{attempt + 1}}/{retry_count} for action '{action_type}' failed with error: {{type(e).__name__}}\")\n"
                 code += f"                if attempt < {retry_count - 1}:\n"
                 code += f"                    logger.info(f\"Retrying in {retry_delay} seconds...\")\n"
                 code += f"                    time.sleep({retry_delay})\n"
@@ -329,7 +330,9 @@ if __name__ == "__main__":
                 time.sleep(sleep_seconds)
 
             run_workflow(trigger_data=None)
-            base_time = datetime.now()
+
+            # Set the base time for the next iteration to the time this one was scheduled to run
+            base_time = next_run_time
         except Exception as e:
             logger.error(f"Error in scheduler: {{e}}")
             time.sleep(60)

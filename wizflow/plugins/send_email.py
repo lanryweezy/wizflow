@@ -51,7 +51,7 @@ def send_email(to_email, subject, body, smtp_server="smtp.gmail.com", smtp_port=
         logger.info(f"📧 Email sent to {to_email}")
         return True
     except Exception as e:
-        logger.error(f"❌ Failed to send email: {e}")
+        logger.error(f"❌ Failed to send email: {type(e).__name__}")
         return False
 '''
 
