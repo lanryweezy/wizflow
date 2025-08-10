@@ -1,10 +1,6 @@
 {
   "name": "Email to WhatsApp Alert",
   "description": "Forward email summaries to WhatsApp",
-  "requirements": [
-    "twilio",
-    "openai"
-  ],
   "trigger": {
     "type": "email",
     "filter": "from:boss@example.com"

@@ -24,8 +24,7 @@ class CodeGenerator:
 
         required_plugins = self._get_required_plugins(workflow)
         
-        # Get a set of all modules that need to be allowed for import
-        allowed_modules = self._get_allowed_modules(required_plugins)
+        allowed_modules = self._get_allowed_modules(required_plugins, workflow)
 
         code = self._get_base_template(allowed_modules)
         code += self._generate_metadata_section(workflow)
@@ -48,28 +47,40 @@ class CodeGenerator:
                 self.logger.warning(f"⚠️  Warning: No plugin found for action type '{action_type}'. It will be skipped.")
         return plugins
 
-    def _get_allowed_modules(self, plugins: Set[ActionPlugin]) -> Set[str]:
+    def _get_allowed_modules(self, plugins: Set[ActionPlugin], workflow: Dict[str, Any]) -> Set[str]:
         """
         Gathers a set of all module names that should be whitelisted for import.
         """
-        # Start with a set of always-allowed, basic modules
         allowed = {'json', 'sys', 'datetime', 'typing', 'os', 'logging'}
         
         for plugin in plugins:
             for imp in plugin.required_imports:
-                # e.g., "from wizflow.core.config import Config" -> "wizflow.core.config"
-                # e.g., "import requests" -> "requests"
                 parts = imp.split()
                 if parts[0] == 'import':
                     allowed.add(parts[1])
                 elif parts[0] == 'from':
                     allowed.add(parts[1])
         
-        # Add the core credential and config modules, as they are used by the template
         allowed.add('wizflow.core.credentials')
         allowed.add('wizflow.core.config')
         allowed.add('wizflow.core.llm_interface')
         
+        trigger_type = workflow.get("trigger", {}).get("type")
+        if trigger_type in ['file', 'schedule']:
+            allowed.add('time')
+        if trigger_type == 'file':
+            allowed.add('watchdog.observers')
+            allowed.add('watchdog.events')
+        elif trigger_type == 'schedule':
+            allowed.add('croniter')
+        elif trigger_type == 'webhook':
+            allowed.add('http.server')
+
+        for action in workflow.get('actions', []):
+            if action.get('on_error', {}).get('retry'):
+                allowed.add('time')
+                break
+
         return allowed
 
     def _get_base_template(self, allowed_modules: Set[str]) -> str:
@@ -102,7 +113,6 @@ if not logger.handlers:
 try:
     from wizflow.core.credentials import CredentialManager
 except ImportError:
-    # Fallback for running script standalone
     class CredentialManager:
         def load_credentials(self):
             logger.warning("Warning: Standalone script, credentials will be empty.")
@@ -114,24 +124,19 @@ _original_import = __import__
 def _secure_import(name, globals=None, locals=None, fromlist=(), level=0):
     ALLOWED_MODULES = set(json.loads('{allowed_modules_str}'))
     
-    # Allow relative imports
     if name.startswith('wizflow.') and level > 0:
         pass
-    # Also allow any sub-modules of an allowed module
     elif '.'.join(name.split('.')[:-1]) in ALLOWED_MODULES:
         pass
     elif name not in ALLOWED_MODULES:
-        # Check for submodules
         parts = name.split('.')
         if parts[0] not in ALLOWED_MODULES:
             raise ImportError(f"Disallowed import: '{{name}}'")
 
     return _original_import(name, globals, locals, fromlist, level)
 
-# Overriding the import function to enable the sandbox.
 __builtins__['__import__'] = _secure_import
 # --- End Security Sandbox ---
-
 '''
 
     def _generate_metadata_section(self, workflow: Dict[str, Any]) -> str:
@@ -148,14 +153,11 @@ WORKFLOW_INFO = {metadata}
         for plugin in plugins:
             imports.update(plugin.required_imports)
 
-        # Check for triggers or actions that require the 'time' module
         needs_time_module = False
-
         trigger_type = workflow.get("trigger", {}).get("type")
         if trigger_type in ['file', 'schedule']:
             needs_time_module = True
 
-        # Check if any action has a retry policy
         for action in workflow.get('actions', []):
             if action.get('on_error', {}).get('retry'):
                 needs_time_module = True
@@ -164,7 +166,6 @@ WORKFLOW_INFO = {metadata}
         if needs_time_module:
             imports.add("import time")
 
-        # Add other trigger-specific imports
         if trigger_type == 'file':
             imports.add("from watchdog.observers import Observer")
             imports.add("from watchdog.events import FileSystemEventHandler")
@@ -176,15 +177,15 @@ WORKFLOW_INFO = {metadata}
         if not imports:
             return ""
         
-        return '\n# Additional imports\n' + '\n'.join(sorted(list(imports))) + '\n'
+        return '\\n# Additional imports\\n' + '\\n'.join(sorted(list(imports))) + '\\n'
 
     def _generate_action_definitions(self, plugins: Set[ActionPlugin]) -> str:
         """Generate the Python function definitions for all required actions."""
-        code = "\n# --- Action Function Definitions ---\n"
+        code = "\\n# --- Action Function Definitions ---\\n"
         for plugin in plugins:
             code += plugin.get_function_definition()
-            code += "\n"
-        code += "# --- End Action Function Definitions ---\n"
+            code += "\\n"
+        code += "# --- End Action Function Definitions ---\\n"
         return code
 
     def _generate_main_function(self, workflow: Dict[str, Any], plugins: Set[ActionPlugin]) -> str:
@@ -201,16 +202,14 @@ def run_workflow(trigger_data: Dict[str, Any] = None):
     logger.info(f"🚀 Starting workflow: {name}")
     logger.info(f"📋 Description: {description}")
 
-    # Initialize variables for data passing between actions
     variables = trigger_data if trigger_data is not None else {{}}
 
-    # Load credentials
     try:
         cred_manager = CredentialManager()
         credentials = cred_manager.load_credentials()
         logger.debug("🔒 Credentials loaded.")
     except Exception as e:
-        logger.error(f"❌ Error loading credentials: {{e}}")
+        logger.error(f"❌ Error loading credentials: {{type(e).__name__}}")
         credentials = {{}}
 
     try:
@@ -223,23 +222,23 @@ def run_workflow(trigger_data: Dict[str, Any] = None):
         
     except Exception as e:
         logger.error(f"❌ Workflow failed with error: {type(e).__name__}")
-        logger.debug(f"Full error: {e}", exc_info=True) # Log full error only in debug
+        logger.debug(f"Full error: {e}", exc_info=True)
         return False
 '''
         return main_func_header + action_calls_code + main_func_footer
 
     def _generate_action_calls(self, workflow: Dict[str, Any]) -> str:
         """Generate the sequence of action calls inside the main function."""
-        code = ""
+        lines = []
         for i, action in enumerate(workflow.get('actions', []), 1):
             action_type = action.get('type', 'unknown')
 
-            code += f"\n        # --- Action {i}: {action_type} ---\n"
-            code += f"        logger.info(f\"▶️  Executing action {i}: {action_type}\")\n"
+            lines.append(f"\\n        # --- Action {i}: {action_type} ---")
+            lines.append(f"        logger.info(f\\\"▶️  Executing action {i}: {action_type}\\\")")
 
             plugin = self.plugin_manager.get_action_plugin(action_type)
             if not plugin:
-                code += f"        logger.warning(\"🤷‍♂️ Action '{action_type}' skipped (no plugin found).\")\n"
+                lines.append(f"        logger.warning(\\\"🤷‍♂️ Action '{action_type}' skipped (no plugin found).\\\")")
                 continue
 
             call_code = plugin.get_function_call(action.get('config', {}))
@@ -251,32 +250,31 @@ def run_workflow(trigger_data: Dict[str, Any] = None):
                 retry_count = retry_config.get('count', 3)
                 retry_delay = retry_config.get('delay_seconds', 5)
 
-                code += f"        action_success = False\n"
-                code += f"        for attempt in range({retry_count}):\n"
-                code += f"            try:\n"
-                code += f"                logger.debug(f\"Attempt {{attempt + 1}}/{retry_count} for action '{action_type}'...\")\n"
-                code += f"                new_variables = {call_code}\n"
-                code += "                if isinstance(new_variables, dict):\n"
-                code += "                    variables.update(new_variables)\n"
-                code += f"                logger.info(f\"✅ Action '{action_type}' completed successfully on attempt {{attempt + 1}}.\")\n"
-                code += f"                action_success = True\n"
-                code += f"                break\n"
-                code += f"            except Exception as e:\n"
-                code += f"                logger.warning(f\"⚠️  Attempt {{attempt + 1}}/{retry_count} for action '{action_type}' failed with error: {{type(e).__name__}}\")\n"
-                code += f"                if attempt < {retry_count - 1}:\n"
-                code += f"                    logger.info(f\"Retrying in {retry_delay} seconds...\")\n"
-                code += f"                    time.sleep({retry_delay})\n"
-                code += f"        if not action_success:\n"
-                code += f"            logger.error(f\"❌ Action '{action_type}' failed after {retry_count} attempts.\")\n"
-                code += f"            raise RuntimeError(f\"Action '{action_type}' failed permanently.\")\n"
+                lines.append("        action_success = False")
+                lines.append(f"        for attempt in range({retry_count}):")
+                lines.append("            try:")
+                lines.append(f"                logger.debug(f\\\"Attempt {{{{attempt + 1}}}}/{retry_count} for action '{action_type}'...\\\")")
+                lines.append(f"                new_variables = {call_code}")
+                lines.append("                if isinstance(new_variables, dict):")
+                lines.append("                    variables.update(new_variables)")
+                lines.append(f"                logger.info(f\\\"✅ Action '{action_type}' completed successfully on attempt {{{{attempt + 1}}}}.\\\")")
+                lines.append("                action_success = True")
+                lines.append("                break")
+                lines.append("            except Exception as e:")
+                lines.append(f"                logger.warning(f\\\"⚠️  Attempt {{{{attempt + 1}}}}/{retry_count} for action '{action_type}' failed with error: {{{{type(e).__name__}}}}\\\")")
+                lines.append(f"                if attempt < {retry_count - 1}:")
+                lines.append(f"                    logger.info(f\\\"Retrying in {retry_delay} seconds...\\\")")
+                lines.append(f"                    time.sleep({retry_delay})")
+                lines.append("        if not action_success:")
+                lines.append(f"            logger.error(f\\\"❌ Action '{action_type}' failed after {retry_count} attempts.\\\")")
+                lines.append(f"            raise RuntimeError(f\\\"Action '{action_type}' failed permanently.\\\")")
 
             else:
-                # No retry logic, execute directly. The main try/except will handle failure.
-                code += f"        new_variables = {call_code}\n"
-                code += "        if isinstance(new_variables, dict):\n"
-                code += "            variables.update(new_variables)\n"
+                lines.append(f"        new_variables = {call_code}")
+                lines.append("        if isinstance(new_variables, dict):")
+                lines.append("            variables.update(new_variables)")
         
-        return code
+        return '\\n'.join(lines)
 
     def _generate_main_execution(self, workflow: Dict[str, Any]) -> str:
         """Generate main execution block"""
@@ -294,13 +292,13 @@ if __name__ == "__main__":
 class FileTriggerHandler(FileSystemEventHandler):
     def on_created(self, event):
         if not event.is_directory:
-            logger.info(f"New file created: {{event.src_path}}")
+            logger.info(f"New file created: {{{{event.src_path}}}}")
             trigger_data = {{"event_type": "created", "src_path": event.src_path}}
             run_workflow(trigger_data=trigger_data)
 
 if __name__ == "__main__":
     path = "{path}"
-    logger.info(f"Watching for new files in {{path}}...")
+    logger.info(f"Watching for new files in {{{{path}}}}...")
     event_handler = FileTriggerHandler()
     observer = Observer()
     observer.schedule(event_handler, path, recursive=True)
@@ -317,7 +315,7 @@ if __name__ == "__main__":
             return f'''
 if __name__ == "__main__":
     schedule_str = "{schedule}"
-    logger.info(f"Running on schedule: {{schedule_str}}")
+    logger.info(f"Running on schedule: {{{{schedule_str}}}}")
     base_time = datetime.now()
     while True:
         try:
@@ -331,10 +329,9 @@ if __name__ == "__main__":
 
             run_workflow(trigger_data=None)
 
-            # Set the base time for the next iteration to the time this one was scheduled to run
             base_time = next_run_time
         except Exception as e:
-            logger.error(f"Error in scheduler: {{e}}")
+            logger.error(f"Error in scheduler: {{{{type(e).__name__}}}}")
             time.sleep(60)
 '''
         elif trigger_type == "webhook":
@@ -357,14 +354,14 @@ class WebhookHandler(BaseHTTPRequestHandler):
             except json.JSONDecodeError:
                 data = {{"raw": post_data.decode('utf-8')}}
 
-            run_workflow(trigger_data={"data": data})
+            run_workflow(trigger_data={{"data": data}})
         else:
             s.send_error(404, "Not Found")
 
 if __name__ == "__main__":
     host = "{host}"
     port = {port}
-    logger.info(f"Starting webhook server on http://{{host}}:{{port}}")
+    logger.info(f"Starting webhook server on http://{{{{host}}}}:{{{{port}}}}")
     with HTTPServer((host, port), WebhookHandler) as httpd:
         httpd.serve_forever()
 '''

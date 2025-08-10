@@ -33,16 +33,11 @@ def test_code_generation_with_retry(cli_instance):
 
     code = cli_instance.generator.generate_code(workflow_json)
 
-    # Check for conditional import of time
     assert "import time" in code
-    # Check for the retry loop
     assert "for attempt in range(5):" in code
-    # Check for the try/except block
     assert "try:" in code
     assert "except Exception as e:" in code
-    # Check for the sleep call
     assert "time.sleep(10)" in code
-    # Check for the final failure exception
     assert "raise RuntimeError(f\"Action 'log_message' failed permanently.\")" in code
 
 def test_code_generation_without_retry(cli_instance):
@@ -62,9 +57,6 @@ def test_code_generation_without_retry(cli_instance):
 
     code = cli_instance.generator.generate_code(workflow_json)
 
-    # Should not have retry-specific code
     assert "for attempt in range" not in code
     assert "time.sleep" not in code
-    # The 'time' module might be imported for other reasons (e.g. schedule trigger),
-    # so we don't assert its absence, just the sleep call.
     assert "raise RuntimeError" not in code

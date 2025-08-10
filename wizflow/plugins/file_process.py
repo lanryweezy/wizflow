@@ -17,29 +17,29 @@ class FileProcessPlugin(ActionPlugin):
 
     def get_function_definition(self) -> str:
         return '''
-def process_file(filepath, operation="read", content_to_write="", variables={}, creds={}):
+def process_file(filepath, operation="read", content_to_write=""):
     """Process file operations"""
     try:
         if operation == "read":
             with open(filepath, 'r') as f:
                 content = f.read()
-            logger.info(f"📄 Read file: {filepath}")
+            print(f"📄 Read file: {filepath}")
             if content:
-                return {"file_content": content}
-            return None
+                variables['file_content'] = content
+            return content
         elif operation == "write":
             with open(filepath, 'w') as f:
                 f.write(content_to_write)
-            logger.info(f"✍️  Wrote to file: {filepath}")
-            return None
+            print(f"✍️  Wrote to file: {filepath}")
+            return True
     except Exception as e:
-        logger.error(f"❌ File operation failed: {type(e).__name__}")
+        print(f"❌ File operation failed: {e}")
         return None
 '''
 
     def get_function_call(self, config: Dict[str, Any]) -> str:
-        filepath = self._resolve_template(config.get('filepath', 'data.txt'))
-        operation = self._resolve_template(config.get('operation', 'read'))
-        content = self._resolve_template(config.get('content', ''))
+        filepath = repr(config.get('filepath', 'data.txt'))
+        operation = repr(config.get('operation', 'read'))
+        content = repr(config.get('content', ''))
 
-        return f"process_file(filepath={filepath}, operation={operation}, content_to_write={content}, variables=variables, creds=credentials)"
+        return f"process_file(filepath={filepath}, operation={operation}, content_to_write={content})"

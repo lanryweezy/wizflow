@@ -1,7 +1,6 @@
 """
 Base class for all action plugins in WizFlow.
 """
-
 import re
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any
@@ -38,8 +37,8 @@ class ActionPlugin(ABC):
     def get_function_definition(self) -> str:
         """
         Returns the full Python code for the function that implements this action.
-        The function should accept `variables` and `creds` dictionaries.
-        e.g., "def send_email(to, subject, body, variables={}, creds={}): ..."
+        This code will be injected into the generated workflow script.
+        e.g., "def send_email(to, subject, body, creds={}): ..."
         """
         pass
 
@@ -48,8 +47,7 @@ class ActionPlugin(ABC):
         """
         Returns the Python code for calling the action's function.
         This method will receive the 'config' dictionary for the action from the workflow JSON.
-        It should resolve any template strings in the config values.
-        e.g., "send_email(to='test@example.com', subject='Hello', body=variables.get('summary'))"
+        e.g., "send_email(to='test@example.com', subject='Hello', body='World', creds=credentials)"
         """
         pass
 
@@ -57,8 +55,8 @@ class ActionPlugin(ABC):
         """
         Resolves a template string like '{{variable_name}}' into a Python expression.
         Handles both full and partial template strings.
-        e.g. '{{foo}}' -> "variables.get('foo')"
-        e.g. 'Status: {{foo}}' -> "f'Status: {variables.get(\"foo\")}'"
+        e.g., '{{foo}}' -> "variables.get('foo')"
+        e.g., 'Status: {{foo}}' -> "f'Status: {variables.get(\"foo\")}'"
         """
         if not isinstance(value, str):
             return repr(value)

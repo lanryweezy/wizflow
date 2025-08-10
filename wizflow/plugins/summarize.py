@@ -24,11 +24,11 @@ class SummarizePlugin(ActionPlugin):
 
     def get_function_definition(self) -> str:
         return '''
-def summarize_text(text, max_length=100, variables={}, creds={}):
+def summarize_text(text, max_length=100):
     """
     Summarize text using the configured LLM provider.
     """
-    logger.info("🧠 Performing AI summarization...")
+    print("🧠 Performing AI summarization...")
     try:
         # Initialize LLM interface within the function
         config = Config()
@@ -39,15 +39,16 @@ def summarize_text(text, max_length=100, variables={}, creds={}):
 
         summary = llm.provider.generate(prompt, system_prompt)
 
-        logger.info(f"📝 Summary: {summary}")
-        return {"summary": summary}
+        variables['summary'] = summary
+        print(f"📝 Summary: {summary}")
+        return summary
     except Exception as e:
-        logger.error(f"❌ AI summarization failed: {type(e).__name__}")
+        print(f"❌ AI summarization failed: {e}")
         return None
 '''
 
     def get_function_call(self, config: Dict[str, Any]) -> str:
-        input_text = self._resolve_template(config.get('input_text', 'Sample text to summarize.'))
+        input_text = repr(config.get('input_text', 'Sample text to summarize.'))
         max_length = config.get('max_length', 100)
 
-        return f"summarize_text(text={input_text}, max_length={max_length}, variables=variables, creds=credentials)"
+        return f"summarize_text(text={input_text}, max_length={max_length})"

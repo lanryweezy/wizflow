@@ -21,7 +21,7 @@ class WebScrapePlugin(ActionPlugin):
 
     def get_function_definition(self) -> str:
         return '''
-def scrape_web(url, selector=None, variables={}, creds={}):
+def scrape_web(url, selector=None):
     """Scrape web content"""
     try:
         response = requests.get(url)
@@ -34,21 +34,21 @@ def scrape_web(url, selector=None, variables={}, creds={}):
         else:
             content = soup.get_text().strip()
 
-        logger.info(f"🕷️  Scraped content from {url}")
+        print(f"🕷️  Scraped content from {url}")
         if content:
-            return {"scraped_content": content}
-        return None
+            variables['scraped_content'] = content
+        return content
     except Exception as e:
-        logger.error(f"❌ Web scraping failed: {type(e).__name__}")
+        print(f"❌ Web scraping failed: {e}")
         return None
 '''
 
     def get_function_call(self, config: Dict[str, Any]) -> str:
-        url = self._resolve_template(config.get('url', 'https://example.com'))
-        selector = self._resolve_template(config.get('selector'))
+        url = repr(config.get('url', 'https://example.com'))
+        selector = config.get('selector')
 
         call_parts = [f"url={url}"]
-        if config.get('selector'):
-            call_parts.append(f"selector={selector}")
+        if selector:
+            call_parts.append(f"selector={repr(selector)}")
 
-        return f"scrape_web({', '.join(call_parts)}, variables=variables, creds=credentials)"
+        return f"scrape_web({', '.join(call_parts)})"

@@ -203,7 +203,7 @@ Examples:
   wizflow run my_workflow
   wizflow export my_workflow
   wizflow config openai_key your_openai_api_key
-  wizflow credentials set smtp_user my_username
+  wizflow credentials add openai api_key
 """
     )
 
@@ -295,7 +295,6 @@ Examples:
                 if password:
                     logger.info(f"🔑 Credential for '{args.username}' on service '{args.service}' found.")
                     # For security, we don't display the password.
-                    # We could show the first few chars or just confirm existence.
                     print("Value exists (hidden for security).")
                 else:
                     logger.warning(f"🤷 No credential found for '{args.username}' on service '{args.service}'.")
